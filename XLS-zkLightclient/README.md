@@ -1,17 +1,12 @@
----
-title: <The title is a few words, not a complete sentence>
-type: draft
-description: <Description is one full (short) sentence>
-author: <a comma separated list of the author(s)>
-# The format of each author should be one of the following:
-# - Author's name, author's affiliation (organization or company) + GitHub username (in parenthesis)
-# - Author's name, author's affiliation + email (in angle brackets)
-#
-# Example: FirstName LastName, OrganizationName (@GitHubUsername) , FirstName LastName, BarCompany <foo@bar.com>
-requires: <XLS number(s)> # Only required when you reference an XLS in the `Specification` section. Otherwise, remove this field.
-core_protocol_changes_required: <true/false> # Indicates whether the proposal requires any changes to the core protocol.
----
+<pre>
+Title:        <b>Zero knowledge proof-based light client</b>
+Description:  Introduce zkLightclient for XRPL 
+Type:         Draft
 
+Author:       <a href="mailto:zhu@ripple.com">Zhangxiang Hu (Ripple)</a>
+</pre>
+
+# Cross-Chain Bridge
 <!--
   This is the suggested template for new XLS specifications. After you have filled in the requisite fields, please delete these comments.
   
