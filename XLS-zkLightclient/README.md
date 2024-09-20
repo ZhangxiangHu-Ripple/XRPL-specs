@@ -1,12 +1,12 @@
 <pre>
-Title:        <b>Zero knowledge proof-based light client</b>
+Title:        <b>Light client with Zero Knowledge Proof</b>
 Description:  Introduce zkLightclient for XRPL 
 Type:         Draft
 
 Author:       <a href="mailto:zhu@ripple.com">Zhangxiang Hu (Ripple)</a>
 </pre>
 
-# Cross-Chain Bridge
+# Light client with Zero Knowledge Proof
 <!--
   This is the suggested template for new XLS specifications. After you have filled in the requisite fields, please delete these comments.
   
