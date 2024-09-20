@@ -7,18 +7,20 @@ Author:       <a href="mailto:zhu@ripple.com">Zhangxiang Hu (Ripple)</a>
 </pre>
 
 # Light client with Zero Knowledge Proof
-<!--
-  This is the suggested template for new XLS specifications. After you have filled in the requisite fields, please delete these comments.
-  
-  The requirements to sections depend on the type of proposal. For example, amendments require some information that may not be relevant for other kinds of proposals. Please adapt the template as appropriate.
-
-  The title should be 44 characters or less.
-
-  TODO: Remove this comment before submitting
--->
 
 ## Abstract
+To interact with XRPL network, a new XRPL client node must either maintains a full transaction history or 
+connects to a remote server which can provide required services to the node. 
+However, while maintaining a full XRPL transaction history is resource intensive and impractical for many resource-constrained devices such as smart phones and Internet of Things, 
+requiring service from a remote server relies on a strong trust assumption that the server must be honest. 
 
+To address the high resource requirement and trust issue in running an XRPL node, 
+this amendment proposes XRPL light client. 
+The XRPL light client maintains a list of up-to-date XRPL ledgers (i.e., XRPL block headers) and 
+apply the inclusion proof to verify that a transaction or an account state is valid on XRPL. 
+However, XRPL light client itself cannot automatically update its internal states such that 
+the XRPL ledgers in the light client are consistent the ones on the mainnet. 
+Therefore, we leverage Zero-knowledge Proof technique to efficiently synchronize the state of XRPL light client with updated state of XRPL mainnet. 
 <!--
   The Abstract is a multi-sentence (short paragraph) technical summary. This should be a very terse and human-readable version of the specification section. Someone should be able to read only the abstract to get the gist of what this specification does.
 
