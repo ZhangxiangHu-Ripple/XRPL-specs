@@ -28,11 +28,11 @@ efficiently synchronize the state of XRPL light client with updated state of XRP
   TODO: Remove this comment before submitting
 -->
 
-## Overview
+## 1. Overview
 This design proposes XRPL light client (xClient) ecosystem which 
-contains four components: XRPL mainnet, full nodes, relay network, and xClient. 
+contains four components: XRP ledger (XRPL), XRPL full nodes, relay network, and xClient. 
 
-- **XRP Ledger (XRPL)**: XRPL is an open ledger that executes all transactions and updates the states of all ledger objects. 
+- **XRP Ledger**: XRPL is an open ledger that executes all transactions and updates the states of all ledger objects. 
 It relies on the XRP Ledger Consensus Protocol (LCP) to agree on a set of transactions to add to the next ledger version. 
 
 - **XRPL Full nodes**: A full node stores a complete copy of the blockchain's transaction history, current state, and all the rules necessary to validate transactions and blocks. 
@@ -48,6 +48,13 @@ When a new block is created on XRPL, a relayer in the relay network will obtain 
 along with its associated validity proof $p$ and relay $(b, p)$ to xClient. 
 xClient verifies the proof and updates its state by appending the new header to the header list. 
 
+### 1.1. Changes to the XRPL and Rippled
+This proposal does not introduce any change to XRPL infrastructure. 
+If instantiating an XRPL full node with a validator or a tracking server, 
+then a new RPC method `inclusionProof` should be provided by Rippled. 
+This method has no effect on consensus or transaction processing, 
+thus requires no amendment.
+
 <!--
   This section is optional.
 
@@ -58,7 +65,26 @@ xClient verifies the proof and updates its state by appending the new header to 
   TODO: Remove this comment before submitting
 -->
 
-## Specification
+## 2. Specification
+
+### 2.1 XRP Ledger
+In this proposal, XRPL mainnet has the same assumption as described in the original [whitepaper](https://ripple.com/files/ripple_consensus_whitepaper.pdf). 
+A set of validators, each maintaining its own UNL, run the XRP Ledger Consensus Protocol (LCP) to achieve consensus. 
+To ensure the consistency of XRPL, an [analysis](https://arxiv.org/pdf/1802.07242) show that under a general fault model, the minimum overlap of each pair of UNLs should be greater than 90%. 
+This design adopt the same requirement and assume that each pair of validators’ UNL has an overlap of more than 90% (assumption 1). 
+
+### 2.1 Full Nodes
+A full node in xClient ecosystem is the node that has a complete copy of the blockchain, 
+including the entire transaction history and the current state. 
+Anyone can join the XRPL network and act as a full node to provide services for others. 
+We propose main functionalities of a full node: 
+
+1. Storing the whole XRPL transaction history and keeping the current ledger state up to date;
+
+2. Responding to queries from other full nodes and relayers for information about block headers and inclusion proof. 
+
+
+
 
 <!--
   The Specification section should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations.
