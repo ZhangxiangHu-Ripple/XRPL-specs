@@ -1,6 +1,6 @@
 <pre>
 Title:        <b>Light client with Zero Knowledge Proof</b>
-Description:  Introduce zkLightclient for XRPL 
+Description:  Introduce zkLightclient to XRPL 
 Type:         Draft
 
 Author:       <a href="mailto:zhu@ripple.com">Zhangxiang Hu (Ripple)</a>
@@ -18,16 +18,35 @@ To address the high resource requirement and trust issue in running an XRPL node
 this amendment proposes XRPL light client. 
 The XRPL light client maintains a list of up-to-date XRPL ledgers (i.e., XRPL block headers) and 
 apply the inclusion proof to verify that a transaction or an account state is valid on XRPL. 
-However, XRPL light client itself cannot automatically update its internal states such that 
-the XRPL ledgers in the light client are consistent the ones on the mainnet. 
-Therefore, we leverage Zero-knowledge Proof technique to efficiently synchronize the state of XRPL light client with updated state of XRPL mainnet. 
+However, XRPL light client itself cannot automatically update its internal states to ensure that  
+the XRPL ledgers in the light client are consistent with those on the mainnet. 
+Therefore, we leverage Zero-knowledge Proof technique to 
+efficiently synchronize the state of XRPL light client with updated state of XRPL mainnet. 
 <!--
   The Abstract is a multi-sentence (short paragraph) technical summary. This should be a very terse and human-readable version of the specification section. Someone should be able to read only the abstract to get the gist of what this specification does.
 
   TODO: Remove this comment before submitting
 -->
 
-## Motivation
+## Overview
+This design proposes XRPL light client (xClient) ecosystem which 
+contains four components: XRPL mainnet, full nodes, relay network, and xClient. 
+
+- **XRP Ledger (XRPL)**: XRPL is an open ledger that executes all transactions and updates the states of all ledger objects. 
+It relies on the XRP Ledger Consensus Protocol (LCP) to agree on a set of transactions to add to the next ledger version. 
+
+- **XRPL Full nodes**: A full node stores a complete copy of the blockchain's transaction history, current state, and all the rules necessary to validate transactions and blocks. 
+A full node does not have to participate in the XRP LCP to create new blocks. 
+However, it should be able to verify a specific transaction's validity. 
+In XRPL, a full node can be easily instantiated by a validator or a tracking server. 
+
+- **Relay network**: The relay network is an abstract entity that provides the relay service between XRPL network/full nodes and xClient. 
+In particular, it interacts with the XPRL network or full nodes to fetch a ledger header $b$ and obtains a validity proof $p$ of $b$. 
+
+- **xClient**: xClient is the instantiation of XRPL light client that only maintains a list of XRPL ledger headers. 
+When a new block is created on XRPL, a relayer in the relay network will obtain the new header $b$ 
+along with its associated validity proof $p$ and relay $(b, p)$ to xClient. 
+xClient verifies the proof and updates its state by appending the new header to the header list. 
 
 <!--
   This section is optional.
