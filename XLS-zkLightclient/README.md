@@ -104,10 +104,10 @@ The xClient ecosystem requires a relay service to forward required information f
 XRPL mainnet or full nodes to xClient for header update and transaction verification. 
 
 1. A relay node continuously monitor XRPL new ledger headers. 
-When a new ledger header is created, the node obtains the new block header and the header proof by either 
+When a new ledger header is created, the node obtains the new block header information by either 
 1) monitoring the XRPL mainnet (by subscribing Validations Stream) or 
 2) querying full nodes with `getledgerproof` method. 
-Then the node forwards the new ledger header along with the header proof to an xClient instance. 
+Then the node generates the header proof with **zero-knowledge proof** technique and forwards the new ledger header along with the header proof to an xClient instance. 
 
 2. A relay node monitors xClient request queue and retrieve requests from xClient. 
 
@@ -138,13 +138,103 @@ The main functionalities of xClient include:
 1. xClient maintains the history of XRPL states. 
 
 2. xClient updates its internal state to synchronize the latest ledger header with XRPL mainnet, under the help from a relayer. 
+Specifically, xClient receives a new ledger header along with an associated ZK proof from a relayer and 
+then verifies the proof against the new header. 
+xClient updates its state with the new header if the proof is valid, and rejects otherwise. 
 
 3. xClient provides the state information to users who make queries about the XRPL states. 
 
 4. xClient verifies the validity of XRPL transactions, under the help from a relayer. {\xnote optional?}
 
+#### 2.4.1 Security 
+
+This design adopts the security definition from the peer-reviewed [zkBridge](https://arxiv.org/pdf/2210.00264) paper. 
+let $View_i = [lh_1,lh_2,...,lh_i]$ where $lh_i$ indicates the ledger header at height $i$, 
+xClient should satisfy the following properties: 
+- **Succinctness**: For each state update, xClient should take constant 𝑂(1) time to synchronize the state.
+- **Liveness**: If an honest full node receives some transaction $tx$ at some round $𝑟$, 
+then $tx$ must be included into the XRPL eventually. 
+xClient will eventually include a ledger header $lh_k$ such that the corresponding ledger includes the transaction $tx$. 
+- **Consistency**: For any round of $i$ and $j$, it must be satisfied that either $View_𝑖$ is a prefix of $View_j$, or vice versa. 
+
+#### 2.4.2 Header Proof
+In xClient model, either full nodes or relayers should provide validity proof for new ledger headers. 
+In this design, we propose **validation message-based proof** for updating ledger headers on xClient. 
+In particular, the design requires an xClient instantiation maintains its own UNL. 
+when a new block is created, relayers obtain the validation messages from XRPL network which 
+are signed by XRPL validators, and relay the messages to xClient. 
+After receiving the required validation messages, xClient verifies the signatures against the UNL it maintains. 
+If a majority of the signatures are valid, then xClient accepts the new block header. 
+
+In XRPL consensus mechanism, to avoid forking, 
+the UNLs of validators should have a high degree of overlap. 
+Similarly, in this design, an xClient instantiation also uses the recommended 35 validators in default to configure its UNL. 
+If more than 80% validators in xClient's UNL sign a new ledger header in validation messages, 
+xClient consider the new header as valid and updates its internal state accordingly. 
+
+We also propose to leverage ZKP to achieve succinctness. 
+Specifically, xClient MUST support SNARK proof (e.g., Groth16) verification for constant proof size and verification time. 
+
+#### 2.4.3 Containers and Helper Functions 
+
+- **Metadata**
+```
+MetaData {
+  chainID: string;    // indicates XRPL 
+  proofType: uint32;   // we propose four options
+  quorum: double;    // number of valid signatures for a valid block header
+  latestIndex: Height;    // current height of light client
+  lastUpdateTime;    // the timestamp for the last update of xClient
+  expireTime;    // xClient expires if it is offline for a while
+  headers: byte[] // XPRL header list
+
+  Initialization();    // Called by the goverance layer to create a new instance of xClient. The goverance layer decides the initial MetaData, ConsensusData, and other required parameters for xClient. 
+  VerifyHeaderMsg();   // verify the header message it receives. 
+  UpdateMetaData();    // update `MetaData` and `ConsensusData` if VerifyHeaderMsg() returns true.
+  VerifyException();   // check if XRPL has any pre-defined infrastructure change
+  UpdateException();   // update the corresponding properties that are stored in MetaData and ConsensusData 
+  SubmitHeaderMsg();   // allow relayers to submit block header message to xClient. 
+}
+```
+
+- **ConsensusData**
+```
+ConsensusData {
+  timestamp: uint64;    // the timestamp of the last block
+  consensusType: uint32;    // stores the current consensus type
+  nextValidators: byte[]    // validators for the next block if proofType != 0
+  validatorKeys: byte[]    // keys of chosen validators if proofType != 0
+}
+
+```
+
+- **requestUpdate**
+```
+requestUpdate{
+  "id": string;   // time, block number, transaction hash, or vlidators
+  "command": string;  // value of the command according to the id
+  "ledgerIndex": uint64;  // the last verified header in xClient
+}
+
+```
+
+- **headerMsg**
+```
+headerMsg {
+  validators: byte[];    // a list of validator information
+  blockIndex: Height;    // height of the latest block 
+  headerHash: byte[];    // a single header or multiple headers 
+  proofType: uint32;    // choose a proof type
+  headerProofs: byte[];    // signatures or proofs based on the proofType
+  lastTrustedLedgerIndex: uint64 or byte[32];    // height of the last trusted block
+  exceptions: uint32;    // Uncommon infrastructure change of XRPL such as consensus mechanism, fork, expired xClient, etc... used to stop xClient and invoke goverance layer. Should be well defined by the goverance layer. 
+
+```
+
 
 ## Todo, appendix, and discussion
+
+1. Who should we talk to for the functionality of general-purpose XRPL light client?
 
 <!--
   The Specification section should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations.
