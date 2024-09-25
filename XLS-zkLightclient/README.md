@@ -48,6 +48,9 @@ When a new block is created on XRPL, a relayer in the relay network will obtain 
 along with its associated validity proof $p$ and relay $(b, p)$ to xClient. 
 xClient verifies the proof and updates its state by appending the new header to the header list. 
 
+**![xClient architecture](https://github.com/ZhangxiangHu-Ripple/XRPL-specs/blob/main/XLS-zkLightclient/xclient_arch.png)**
+
+
 ### 1.1. Changes to the XRPL and Rippled
 This proposal does not introduce any change to XRPL infrastructure. 
 If instantiating an XRPL full node with a validator or a tracking server, 
@@ -73,19 +76,30 @@ A set of validators, each maintaining its own UNL, run the XRP Ledger Consensus 
 To ensure the consistency of XRPL, an [analysis](https://arxiv.org/pdf/1802.07242) show that under a general fault model, the minimum overlap of each pair of UNLs should be greater than 90%. 
 This design adopt the same requirement and assume that each pair of validators’ UNL has an overlap of more than 90% (assumption 1). 
 
-### 2.1 Full Nodes
+### 2.2 Full Nodes
 A full node in xClient ecosystem is the node that has a complete copy of the blockchain, 
 including the entire transaction history and the current state. 
 Anyone can join the XRPL network and act as a full node to provide services for others. 
-We propose main functionalities of a full node: 
+We propose two main functionalities of a full node: 
 
-1. Storing the whole XRPL transaction history and keeping the current ledger state up to date;
+1. Storing the whole XRPL transaction history and keeping the current ledger state up to date. We refer the node with full ledger history since the genesis block as the archive node, and the node with partial history (e.g., most recent 1024 blocks) as the regular full node. 
+
+2. Storing the validation messages of the most recent leader. 
 
 2. Responding to queries from other full nodes and relayers for information about block headers and inclusion proof. 
 
 
+To respond to queries about block headers and inclusion proof, 
+a full node must support following RPC methods: 
+
+- `getblockheaders`: Returns the headers of a specific XRPL ledger header or a range of ledger headers, identified by ledger height or hash. 
+- `getrecentheaders`: Returns the header of the most recent XRPL ledger. 
+- `getledgerproof`: Returns the validation messages of the most recent XRPL leader.  
+- `gettxproof`: Returns the information of a transaction, including the inclusion proof of the transaction, identified by the transaction hash.
+- `getaccountinfo`: Returns a list of transactions associated with an account, identified by the account address. 
 
 
+### 2.3 Relay Network
 <!--
   The Specification section should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations.
 
