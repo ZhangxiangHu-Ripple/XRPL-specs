@@ -74,7 +74,7 @@ thus requires no amendment.
 In this proposal, XRPL mainnet has the same assumption as described in the original [whitepaper](https://ripple.com/files/ripple_consensus_whitepaper.pdf). 
 A set of validators, each maintaining its own UNL, run the XRP Ledger Consensus Protocol (LCP) to achieve consensus. 
 To ensure the consistency of XRPL, an [analysis](https://arxiv.org/pdf/1802.07242) show that under a general fault model, the minimum overlap of each pair of UNLs should be greater than 90%. 
-This design adopt the same requirement and assume that each pair of validators’ UNL has an overlap of more than 90% (assumption 1). 
+This design adopt the same requirement and **assume that each pair of validators’ UNL has an overlap of more than 90% (assumption 1)**. 
 
 ### 2.2 Full Nodes
 A full node in xClient ecosystem is the node that has a complete copy of the blockchain, 
@@ -82,24 +82,70 @@ including the entire transaction history and the current state.
 Anyone can join the XRPL network and act as a full node to provide services for others. 
 We propose two main functionalities of a full node: 
 
-1. Storing the whole XRPL transaction history and keeping the current ledger state up to date. We refer the node with full ledger history since the genesis block as the archive node, and the node with partial history (e.g., most recent 1024 blocks) as the regular full node. 
+1. Storing the whole XRPL transaction history and keeping the current ledger state up to date. We refer the node with full ledger history since the genesis ledger as the archive node, and the node with partial history (e.g., most recent 1024 ledgers) as the regular full node. 
 
 2. Storing the validation messages of the most recent leader. 
 
-2. Responding to queries from other full nodes and relayers for information about block headers and inclusion proof. 
+2. Responding to queries from other full nodes and relayers for information about ledger headers and transactions.
 
-
-To respond to queries about block headers and inclusion proof, 
+To respond to queries about the information of ledger headers and inclusion proof, 
 a full node must support following RPC methods: 
 
 - `getblockheaders`: Returns the headers of a specific XRPL ledger header or a range of ledger headers, identified by ledger height or hash. 
 - `getrecentheaders`: Returns the header of the most recent XRPL ledger. 
 - `getledgerproof`: Returns the validation messages of the most recent XRPL leader.  
 - `gettxproof`: Returns the information of a transaction, including the inclusion proof of the transaction, identified by the transaction hash.
-- `getaccountinfo`: Returns a list of transactions associated with an account, identified by the account address. 
+- `getaccountinfo`: Returns the current state of an account, identified by the account address. 
+- `getaccounttx`: Returns a list of transactions associated with an account, identified by the account address. 
 
 
 ### 2.3 Relay Network
+The xClient ecosystem requires a relay service to forward required information from 
+XRPL mainnet or full nodes to xClient for header update and transaction verification. 
+
+1. A relay node continuously monitor XRPL new ledger headers. 
+When a new ledger header is created, the node obtains the new block header and the header proof by either 
+1) monitoring the XRPL mainnet (by subscribing Validations Stream) or 
+2) querying full nodes with `getledgerproof` method. 
+Then the node forwards the new ledger header along with the header proof to an xClient instance. 
+
+2. A relay node monitors xClient request queue and retrieve requests from xClient. 
+
+3. A relay node submits requests to full nodes via full node RPC and obtains the requested information. 
+
+4. A relay node forwards the requested information to xClient.
+
+4. (Optional) In case of XRPL consensus mechanism change, a relayer submits the evidence of the change to xClient. 
+
+In this proposal, a relayer is only responsible for establishing communications between XRPL mainnet/full nodes and 
+does not perform any verification of transactions or block headers, thus do not need to be trusted to behave honestly. 
+However, to simplify the case of DoS, 
+**we assume there is at least one honest node in the relay network to 
+relay headers, transactions, and the corresponding proofs (Assumption 2)**.
+
+A relayer in xClient model is an abstract entity. 
+Anyone can join the relay network to provides relay service between XRPL and xClient. 
+For example, a node can act as both a full node and a relayer. 
+In practice, a potential instantiation of a relayer is the witness server, as described in 
+[XLS-38](https://github.com/XRPLF/XRPL-Standards/tree/d61629cf2a5ad81153c7439f74f48d90dc96e741/XLS-0038-cross-chain-bridge).
+
+### 2.4 xClient
+xClient is the core component of the xClient ecosystem. 
+It maintains the state (i.e., the ledger headers) history of XPRL and 
+enables relayers to synchronize new ledger header of XRPL mainnet. 
+The main functionalities of xClient include:
+
+1. xClient maintains the history of XRPL states. 
+
+2. xClient updates its internal state to synchronize the latest ledger header with XRPL mainnet, under the help from a relayer. 
+
+3. xClient provides the state information to users who make queries about the XRPL states. 
+
+4. xClient verifies the validity of XRPL transactions, under the help from a relayer. {\xnote optional?}
+
+
+## Todo, appendix, and discussion
+
 <!--
   The Specification section should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations.
 
@@ -108,7 +154,7 @@ a full node must support following RPC methods:
   TODO: Remove this comment before submitting
 -->
 
-The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in RFC 2119 and RFC 8174.
+<!-- The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in RFC 2119 and RFC 8174. -->
 
 <!--
 The following is an example of how you can document new transactions, ledger entry types, and fields:
@@ -142,7 +188,7 @@ For "Internal Type", most fields should use existing types defined in the XRPL b
 When defining transactions, please identify any potential error scenarios. If a transaction can fail with a `tec`-class result code, specify the appropriate code. Remember that tec codes are immutable ledger entries, so changing them can cause compatibility issues with older data. Additionally, as tec codes are limited in number, it's best to reuse existing codes whenever possible. While error code details may be initially vague or incomplete, they should be refined as the proposal progresses through the candidate specification process.
 -->
 
-## Rationale
+<!-- ## Rationale -->
 
 <!--
   The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages.
@@ -152,9 +198,9 @@ When defining transactions, please identify any potential error scenarios. If a 
   TODO: Remove this comment before submitting
 -->
 
-TBD
+<!-- TBD -->
 
-## Backwards Compatibility
+<!-- ## Backwards Compatibility -->
 
 <!--
 
@@ -167,9 +213,9 @@ TBD
   TODO: Remove this comment before submitting
 -->
 
-No backward compatibility issues found.
+<!-- No backward compatibility issues found.
 
-## Test Cases
+## Test Cases -->
 
 <!--
   This section is optional.
@@ -180,7 +226,7 @@ No backward compatibility issues found.
   TODO: Remove this comment before submitting
 -->
 
-## Invariants
+<!-- ## Invariants -->
 
 <!--
   This section is optional, but recommended.
@@ -191,7 +237,7 @@ Invariants are fundamental rules governing a feature's behavior that must always
 
 -->
 
-## Reference Implementation
+<!-- ## Reference Implementation -->
 
 <!--
   This section is optional.
@@ -202,7 +248,7 @@ Invariants are fundamental rules governing a feature's behavior that must always
   TODO: Remove this comment before submitting
 -->
 
-## Security Considerations
+<!-- ## Security Considerations -->
 
 <!--
   All XLS documents must contain a section that discusses the security implications/considerations relevant to the proposed change. Include information that might be important for security discussions, surfaces risks, and can be used throughout the lifecycle of the proposal. For example, include security-relevant design decisions, concerns, important discussions, implementation-specific guidance and pitfalls, an outline of threats and risks, and how they are being addressed. Submissions missing the "Security Considerations" section may be rejected.
@@ -212,5 +258,5 @@ Invariants are fundamental rules governing a feature's behavior that must always
   TODO: Remove this comment before submitting
 -->
 
-Needs discussion.
+<!-- Needs discussion. -->
 
