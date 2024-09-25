@@ -174,6 +174,7 @@ xClient consider the new header as valid and updates its internal state accordin
 
 We also propose to leverage ZKP to achieve succinctness. 
 Specifically, xClient MUST support SNARK proof (e.g., Groth16) verification for constant proof size and verification time. 
+\xnote{add details of proving system?}
 
 #### 2.4.3 Containers and Helper Functions 
 
@@ -230,6 +231,7 @@ headerMsg {
   exceptions: uint32;    // Uncommon infrastructure change of XRPL such as consensus mechanism, fork, expired xClient, etc... used to stop xClient and invoke goverance layer. Should be well defined by the goverance layer. 
 
 ```
+
 
 
 ## Todo, appendix, and discussion
