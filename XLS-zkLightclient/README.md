@@ -176,6 +176,8 @@ We also propose to leverage ZKP to achieve succinctness.
 Specifically, xClient MUST support SNARK proof (e.g., Groth16) verification for constant proof size and verification time. 
 \xnote{add details of proving system?}
 
+**![diagram](https://github.com/ZhangxiangHu-Ripple/XRPL-specs/blob/main/XLS-zkLightclient/xclient_relayer.png)**
+
 #### 2.4.3 Containers and Helper Functions 
 
 - **Metadata**
