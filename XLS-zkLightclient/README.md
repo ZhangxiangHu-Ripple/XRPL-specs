@@ -100,6 +100,7 @@ Request format:
 |`ledger_hash`|`string`|A hex string for the requested ledger 
 |`ledger_index`|`number`|The ledger index of requested ledger
 |`ledger_indices`|`Array of numbers`|A set of ledger indices of requested ledgers
+
 A valid request must have exactly one of `ledger_hash`, `ledger_index`, or `ledger_indices` included. 
 
 Response format:
