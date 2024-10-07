@@ -115,8 +115,27 @@ The response could follow the [standard format](https://xrpl.org/docs/references
 * XRPL does not contain the height of `ledger_index` or any height in `ledger_indices`.
 
 #### 2.2.2 `getrecentheaders`: Returns the header of the most recent XRPL ledger. 
+Request format:
+|Field Name|JSON Type|Description|
+|-------|---------|---------|
+|`ledger_param`|`String`|A string of value `validated`. Used to request the latest validated ledger.
+
+Response format:
+|Field Name|JSON Type|Description|
+|-------|---------|---------|
+|`ledger_meta`|`Object`|The complete header metadata of the latest validated ledger. 
 
 #### 2.2.3 `getledgerproof`: Returns the validation messages of the most recent XRPL leader.  
+Request format:
+|Field Name|JSON Type|Description|
+|-------|---------|---------|
+|`ledger_proof`|`String`|A string of value `validated_proof`. Used to request the validation messages of latest validated ledger.
+
+Response format:
+|Field Name|JSON Type|Description|
+|-------|---------|---------|
+|`ledger_meta`|`Array of Objects`|The validation messages from XRPL validators for the most recent validated ledger. 
+
 
 #### 2.2.4 `gettxproof`: Returns the information of a transaction, including the inclusion proof of the transaction, identified by the transaction hash.
 
