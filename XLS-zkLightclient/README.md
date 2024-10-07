@@ -86,17 +86,42 @@ We propose two main functionalities of a full node:
 
 2. Storing the validation messages of the most recent leader. 
 
-2. Responding to queries from other full nodes and relayers for information about ledger headers and transactions.
+3. Responding to queries from other full nodes and relayers for information about ledger headers and transactions.
 
 To respond to queries about the information of ledger headers and inclusion proof, 
-a full node must support following RPC methods: 
+a full node must support following RPC methods.  
 
-- `getblockheaders`: Returns the headers of a specific XRPL ledger header or a range of ledger headers, identified by ledger height or hash. 
-- `getrecentheaders`: Returns the header of the most recent XRPL ledger. 
-- `getledgerproof`: Returns the validation messages of the most recent XRPL leader.  
-- `gettxproof`: Returns the information of a transaction, including the inclusion proof of the transaction, identified by the transaction hash.
-- `getaccountinfo`: Returns the current state of an account, identified by the account address. 
-- `getaccounttx`: Returns a list of transactions associated with an account, identified by the account address. 
+#### 2.2.1 `getblockheaders`
+Returns the header of a specific XRPL ledger or headers of a set of ledgers, identified by ledger hashes or heights. 
+
+Request format:
+|Field Name|JSON Type|Description|
+|-------|---------|---------|
+|`ledger_hash`|`string`|A hex string for the requested ledger 
+|`ledger_index`|`number`|The ledger index of requested ledger
+|`ledger_indices`|`Array of numbers`|A set of ledger indices of requested ledgers
+A valid request must have exactly one of `ledger_hash`, `ledger_index`, or `ledger_indices` included. 
+
+Response format:
+|Field Name|JSON Type|Description|
+|-------|---------|---------|
+|`ledger_meta`|`Object`|The complete header metadata of requested ledger as indicated in `ledger_hash` or `ledger_index`
+|`ledger_set_meta`|`Array of Objects`|The complete header metadata of requested ledgers as indicated in `ledger_indices`
+
+The response could follow the [standard format](https://xrpl.org/docs/references/http-websocket-apis/api-conventions/response-formatting), with the result containing information about requested ledgers, or will error if 
+* Any of the fields in request has an incorrect format.
+* `ledger_hash` does not exist. 
+* XRPL does not contain the height of `ledger_index` or any height in `ledger_indices`.
+
+#### 2.2.2 `getrecentheaders`: Returns the header of the most recent XRPL ledger. 
+
+#### 2.2.3 `getledgerproof`: Returns the validation messages of the most recent XRPL leader.  
+
+#### 2.2.4 `gettxproof`: Returns the information of a transaction, including the inclusion proof of the transaction, identified by the transaction hash.
+
+#### 2.2.5 `getaccountinfo`: Returns the current state of an account, identified by the account address. 
+
+#### 2.2.6 `getaccounttx`: Returns a list of transactions associated with an account, identified by the account address. 
 
 
 ### 2.3 Relay Network
