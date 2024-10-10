@@ -99,7 +99,7 @@ Request format:
 |-------|---------|---------|
 |`ledger_hash`|`string`|A hex string for the requested ledger 
 |`ledger_index`|`number`|The ledger index of requested ledger
-|`ledger_indices`|`Array of numbers`|A set of ledger indices of requested ledgers
+|`ledger_indices`|`Array of numbers`|Array of ledger indices of requested ledgers
 
 A valid request must have exactly one of `ledger_hash`, `ledger_index`, or `ledger_indices` included. 
 
@@ -110,11 +110,12 @@ Response format:
 |`ledger_set_meta`|`Array of Objects`|The complete header metadata of requested ledgers as indicated in `ledger_indices`
 
 The response could follow the [standard format](https://xrpl.org/docs/references/http-websocket-apis/api-conventions/response-formatting), with the result containing information about requested ledgers, or will error if 
-* Any of the fields in request has an incorrect format.
+* Any of the field type is invalid.
 * `ledger_hash` does not exist. 
 * XRPL does not contain the height of `ledger_index` or any height in `ledger_indices`.
 
-#### 2.2.2 `getrecentheaders`: Returns the header of the most recent XRPL ledger. 
+#### 2.2.2 `getrecentheaders`
+Returns the header of the most recent XRPL ledger. 
 Request format:
 |Field Name|JSON Type|Description|
 |-------|---------|---------|
@@ -125,7 +126,8 @@ Response format:
 |-------|---------|---------|
 |`ledger_meta`|`Object`|The complete header metadata of the latest validated ledger. 
 
-#### 2.2.3 `getledgerproof`: Returns the validation messages of the most recent XRPL leader.  
+#### 2.2.3 `getledgerproof`
+Returns the validation messages of the most recent XRPL leader.  
 Request format:
 |Field Name|JSON Type|Description|
 |-------|---------|---------|
@@ -134,15 +136,74 @@ Request format:
 Response format:
 |Field Name|JSON Type|Description|
 |-------|---------|---------|
-|`ledger_meta`|`Array of Objects`|The validation messages from XRPL validators for the most recent validated ledger. 
+|`ledger_hash`|`String`|The hash of the most recent ledger. 
+|`ledger_index`|`Number`|The ledger index of the most recent ledger. 
+|`proof`|`Array of Objects`|The validation messages from XRPL validators for the most recent validated ledger. 
 
 
-#### 2.2.4 `gettxproof`: Returns the information of a transaction, including the inclusion proof of the transaction, identified by the transaction hash.
+#### 2.2.4 `gettxproof` 
+Returns the information of a transaction, including the inclusion proof of the transaction, identified by the transaction hash.
 
-#### 2.2.5 `getaccountinfo`: Returns the current state of an account, identified by the account address. 
+Request format:
+|Field Name|JSON Type|Description|
+|-------|---------|---------|
+|`citd`|`String`|The compact transaction identifier of the requested transaction. Must use uppercase hexadecimal only.
+|`tx_hash`|`String`|The hash of the requested transaction, as hexadecimal.
+|`proof_type`|`String`|Support two proof types: a normal inclusion proof (i.e., a normal Merkle proof) or a SNARK proof (i.e. a Groth16 proof)
 
-#### 2.2.6 `getaccounttx`: Returns a list of transactions associated with an account, identified by the account address. 
+Response format:
+|Field Name|JSON Type|Description|
+|-------|---------|---------|
+|`ctid`|`String`|The compact transaction identifier of the requested transaction. 
+|`hash`|`String`|The hash of the requested transaction.
+|`ledger_hash`|`String`|The hash of the ledger that contains the requested transaction.
+|`ledger_meta`|`Object`|Transaction metadata, which describes the results of the transaction.
+|`proof`|`Array of Objects`|A normal Merkle proof or a SNARK proof that against `ledger_hash` 
 
+The request fails if 
+* Any of the field type is invalid.
+* `ctid` or `tx_hash` does not exist.
+* The full node does not support the requested `proof_type`. 
+
+#### 2.2.5 `getaccountinfo`
+Returns the current state of an account, identified by the account address. 
+
+Request format:
+|Field Name|JSON Type|Description|
+|-------|---------|---------|
+|`account`|`String`|The requested account address. 
+|`ledger_index`|`Number or String`| The ledger index of the ledger to use, or a string of value "current" to indicate the most recent ledger.   
+
+Response format:
+|Field Name|JSON Type|Description|
+|-------|---------|---------|
+|`account_data`|`Object`|The AccountRoot ledger object of the requested account. 
+
+The request fails if 
+* Any of the field type is invalid.
+* The `account` does not exist. 
+* The ledge with `ledger_index` does not contain the information of `account`. 
+
+#### 2.2.6 `getaccounttx` 
+Returns a list of transactions associated with an account, identified by the account address. 
+
+Request format:
+|Field Name|JSON Type|Description|
+|-------|---------|---------|
+|`account`|`String`|The requested account, identified by account address. 
+|`tx_type`|`String`|The specific type of requested transaction. If not specified, then returns all transactions. 
+|`ledger_hash`|`String`|If specified, only returns transactions in the specific ledger.
+|`ledger_index`|`Number`|If specified, only returns transactions in the specific ledger.
+
+If `ledger_hash` or `ledger_index` is not specified, returns the transaction in the most recent ledger. 
+
+Response format:
+|Field Name|JSON Type|Description|
+|-------|---------|---------|
+|`account`|`String`|The requested account, identified by account address. 
+|`ledger_hash`|`String`|The ledger hash of the searched ledger.
+|`ledger_index`|`Number`|The ledger index of the searched ledger.
+|`tx_list`|`Array of Objects`|Array of complete transaction metadata associated with `account`. 
 
 ### 2.3 Relay Network
 The xClient ecosystem requires a relay service to forward required information from 
@@ -224,6 +285,9 @@ Specifically, xClient MUST support SNARK proof (e.g., Groth16) verification for 
 **![diagram](https://github.com/ZhangxiangHu-Ripple/XRPL-specs/blob/main/XLS-zkLightclient/xclient_relayer.png)**
 
 #### 2.4.3 Containers and Helper Functions 
+In this section we specify the containers and helper functions associated with the xClient.
+
+#### 2.4.4 Containers and Helper Functions 
 
 - **Metadata**
 ```
