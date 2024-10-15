@@ -53,9 +53,9 @@ xClient verifies the proof and updates its state by appending the new header to 
 
 ### 1.1. Changes to the XRPL and Rippled
 This proposal does not introduce any change to XRPL infrastructure. 
-If instantiating an XRPL full node with a validator or a tracking server, 
-then a new RPC method `inclusionProof` should be provided by Rippled. 
-This method has no effect on consensus or transaction processing, 
+If instantiating an XRPL full node with a validator, a tracking server, or a Clio server, 
+then some new RPC methods should be provided by these servers. 
+These methods have no effect on consensus or transaction processing, 
 thus requires no amendment.
 
 <!--
@@ -68,15 +68,14 @@ thus requires no amendment.
   TODO: Remove this comment before submitting
 -->
 
-## 2. Specification
+## 2. XRPL ledger
 
-### 2.1 XRP Ledger
 In this proposal, XRPL mainnet has the same assumption as described in the original [whitepaper](https://ripple.com/files/ripple_consensus_whitepaper.pdf). 
 A set of validators, each maintaining its own UNL, run the XRP Ledger Consensus Protocol (LCP) to achieve consensus. 
 To ensure the consistency of XRPL, an [analysis](https://arxiv.org/pdf/1802.07242) show that under a general fault model, the minimum overlap of each pair of UNLs should be greater than 90%. 
-This design adopt the same requirement and **assume that each pair of validators’ UNL has an overlap of more than 90% (assumption 1)**. 
+This design adopts the same requirement and **assume that each pair of validators’ UNL has an overlap of more than 90% (assumption 1)**. 
 
-### 2.2 Full Nodes
+## 3. Full Nodes
 A full node in xClient ecosystem is the node that has a complete copy of the blockchain, 
 including the entire transaction history and the current state. 
 Anyone can join the XRPL network and act as a full node to provide services for others. 
@@ -91,7 +90,7 @@ We propose two main functionalities of a full node:
 To respond to queries about the information of ledger headers and inclusion proof, 
 a full node must support following RPC methods.  
 
-#### 2.2.1 `getblockheaders`
+### 3.1 `getblockheaders`
 Returns the header of a specific XRPL ledger or headers of a set of ledgers, identified by ledger hashes or heights. 
 
 Request format:
@@ -114,7 +113,7 @@ The response could follow the [standard format](https://xrpl.org/docs/references
 * `ledger_hash` does not exist. 
 * XRPL does not contain the height of `ledger_index` or any height in `ledger_indices`.
 
-#### 2.2.2 `getrecentheaders`
+### 3.2 `getrecentheaders`
 Returns the header of the most recent XRPL ledger. 
 Request format:
 |Field Name|JSON Type|Description|
@@ -126,7 +125,7 @@ Response format:
 |-------|---------|---------|
 |`ledger_meta`|`Object`|The complete header metadata of the latest validated ledger. 
 
-#### 2.2.3 `getledgerproof`
+### 3.3 `getledgerproof`
 Returns the validation messages of the most recent XRPL leader.  
 Request format:
 |Field Name|JSON Type|Description|
@@ -141,7 +140,7 @@ Response format:
 |`proof`|`Array of Objects`|The validation messages from XRPL validators for the most recent validated ledger. 
 
 
-#### 2.2.4 `gettxproof` 
+### 3.4 `gettxproof` 
 Returns the information of a transaction, including the inclusion proof of the transaction, identified by the transaction hash.
 
 Request format:
@@ -165,7 +164,7 @@ The request fails if
 * `ctid` or `tx_hash` does not exist.
 * The full node does not support the requested `proof_type`. 
 
-#### 2.2.5 `getaccountinfo`
+### 3.5 `getaccountinfo`
 Returns the current state of an account, identified by the account address. 
 
 Request format:
@@ -184,7 +183,7 @@ The request fails if
 * The `account` does not exist. 
 * The ledge with `ledger_index` does not contain the information of `account`. 
 
-#### 2.2.6 `getaccounttx` 
+### 3.6 `getaccounttx` 
 Returns a list of transactions associated with an account, identified by the account address. 
 
 Request format:
@@ -205,7 +204,7 @@ Response format:
 |`ledger_index`|`Number`|The ledger index of the searched ledger.
 |`tx_list`|`Array of Objects`|Array of complete transaction metadata associated with `account`. 
 
-### 2.3 Relay Network
+## 4. Relay Network
 The xClient ecosystem requires a relay service to forward required information from 
 XRPL mainnet or full nodes to xClient for header update and transaction verification. 
 
@@ -235,7 +234,7 @@ For example, a node can act as both a full node and a relayer.
 In practice, a potential instantiation of a relayer is the witness server, as described in 
 [XLS-38](https://github.com/XRPLF/XRPL-Standards/tree/d61629cf2a5ad81153c7439f74f48d90dc96e741/XLS-0038-cross-chain-bridge).
 
-### 2.4 xClient
+## 5. xClient
 xClient is the core component of the xClient ecosystem. 
 It maintains the state (i.e., the ledger headers) history of XPRL and 
 enables relayers to synchronize new ledger header of XRPL mainnet. 
@@ -252,7 +251,7 @@ xClient updates its state with the new header if the proof is valid, and rejects
 
 4. xClient verifies the validity of XRPL transactions, under the help from a relayer. {\xnote optional?}
 
-#### 2.4.1 Security 
+### 5.1 Security 
 
 This design adopts the security definition from the peer-reviewed [zkBridge](https://arxiv.org/pdf/2210.00264) paper. 
 let $View_i = [lh_1,lh_2,...,lh_i]$ where $lh_i$ indicates the ledger header at height $i$, 
@@ -263,7 +262,7 @@ then $tx$ must be included into the XRPL eventually.
 xClient will eventually include a ledger header $lh_k$ such that the corresponding ledger includes the transaction $tx$. 
 - **Consistency**: For any round of $i$ and $j$, it must be satisfied that either $View_𝑖$ is a prefix of $View_j$, or vice versa. 
 
-#### 2.4.2 Header Proof
+### 5.2 Header Proof
 In xClient model, either full nodes or relayers should provide validity proof for new ledger headers. 
 In this design, we propose **validation message-based proof** for updating ledger headers on xClient. 
 In particular, the design requires an xClient instantiation maintains its own UNL. 
@@ -284,8 +283,45 @@ Specifically, xClient MUST support SNARK proof (e.g., Groth16) verification for 
 
 **![diagram](https://github.com/ZhangxiangHu-Ripple/XRPL-specs/blob/main/XLS-zkLightclient/xclient_relayer.png)**
 
-#### 2.4.3 Containers and Helper Functions 
+### 5.3 Containers
 In this section we specify the containers and helper functions associated with the xClient.
+
+#### 5.3.1 `metaData`
+A `metadata` container includes the meta information of xClient. 
+
+|Field Name|JSON Type|Description|
+|-------|---------|---------|
+|`chainID`|`String`| The associated chain name
+|`proofType`|`Number`| The proof type that xClient supports: validation messages-based or state transition-based.
+|`quorum`|`Number`| Required number of signatures if `proofType` is validation messages-based proof.
+|`height`|`Number`| The latest ledger index that xClient maintains.
+|`lastUpdateTime`|`Time`| The proof type that xClient supports.
+|`expireTime`|`Time`| xClient expires if it is offline for a while.
+|`headers`|`Array of Strings`| The list of XRPL ledger header.
+
+#### 5.3.2 `consensusData`
+A `consensusData` container includes the consensus information that is used to verify a new XRPL ledger header. 
+
+|Field Name|JSON Type|Description|
+|-------|---------|---------|
+|`timeStamp`|`Time`| The timestamp of the last verified block.
+|`consensusType`|`String`| XRPL consensus mechanism.
+|`validators`|`Array of Strings`| The UNL of xClient.
+|`validatorKeys`|`Array of Strings`| The public keys of accepted validators if `proofType` has the value of 0.
+
+#### 5.3.3 `questQueue`
+A `questQueue` container includes the quests that xClient requires: `update` to update the latest ledger header and `inclusionProof` to inquire the inclusion proof of a transaction. 
+A user sends a task to xClient and xClient stores the task in `questQueue`. 
+A relayer picks a task from `questQueue` and provide the corresponding information to complete the task. 
+
+|Field Name|JSON Type|Description|
+|-------|---------|---------|
+|`quests`|`Array of String`| A queue that stores all unfinished tasks. 
+
+
+### 5.4 Helper functions
+
+```
 
 #### 2.4.4 Containers and Helper Functions 
 
@@ -307,17 +343,6 @@ MetaData {
   UpdateException();   // update the corresponding properties that are stored in MetaData and ConsensusData 
   SubmitHeaderMsg();   // allow relayers to submit block header message to xClient. 
 }
-```
-
-- **ConsensusData**
-```
-ConsensusData {
-  timestamp: uint64;    // the timestamp of the last block
-  consensusType: uint32;    // stores the current consensus type
-  nextValidators: byte[]    // validators for the next block if proofType != 0
-  validatorKeys: byte[]    // keys of chosen validators if proofType != 0
-}
-
 ```
 
 - **requestUpdate**
