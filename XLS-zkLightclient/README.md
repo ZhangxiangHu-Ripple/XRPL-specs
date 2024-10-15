@@ -284,7 +284,7 @@ Specifically, xClient MUST support SNARK proof (e.g., Groth16) verification for 
 **![diagram](https://github.com/ZhangxiangHu-Ripple/XRPL-specs/blob/main/XLS-zkLightclient/xclient_relayer.png)**
 
 ### 5.3 Containers
-In this section we specify the containers and helper functions associated with the xClient.
+This section specifies the containers in xClient.
 
 #### 5.3.1 `metaData`
 A `metadata` container includes the meta information of xClient. 
@@ -319,8 +319,17 @@ A relayer picks a task from `questQueue` and provide the corresponding informati
 |`quests`|`Array of String`| A queue that stores all unfinished tasks. 
 
 
-### 5.4 Helper functions
+### 5.4 Methods
+This section defines the publicly exposed methods in xClient. 
 
+#### 5.4.1 `ledgerUpdate`
+`ledgerUpdate` takes the input of a new XRPL ledger header and a validity proof of the header. 
+If the proof is valid against the new header, xClient inserts the new header in `headers` and updates its internal states accordingly. 
+```
+def ledgerUpdate(Header: header, Proof: $\pi$)
+```
+
+<!-- 
 ```
 
 #### 2.4.4 Containers and Helper Functions 
@@ -368,7 +377,7 @@ headerMsg {
 
 ```
 
-
+-->
 
 ## Todo, appendix, and discussion
 
