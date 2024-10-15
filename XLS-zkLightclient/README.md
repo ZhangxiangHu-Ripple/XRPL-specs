@@ -325,8 +325,20 @@ This section defines the publicly exposed methods in xClient.
 #### 5.4.1 `ledgerUpdate`
 `ledgerUpdate` takes the input of a new XRPL ledger header and a validity proof of the header. 
 If the proof is valid against the new header, xClient inserts the new header in `headers` and updates its internal states accordingly. 
+
+Example: 
 ```
-def ledgerUpdate(Header: header, Proof: $\pi$)
+def ledgerUpdate(Header: headerMsg, Proof: proof) {
+  # check if header exists
+  if is_in(headerMsg, consensusData.headers)
+    return False
+
+  # Verify is valid. Insert header, update metaData, and consensusData. 
+  if proof_verify(headerMsg, proof, metaData, consensusData)
+    header_insert(header, metaData)
+    metaData_update(headerMsg)
+    consensus_update(headerMsg)
+}
 ```
 
 <!-- 
