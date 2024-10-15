@@ -340,6 +340,43 @@ def ledgerUpdate(Header: headerMsg, Proof: proof) {
     consensus_update(headerMsg)
 }
 ```
+#### 5.4.1 `getLedger`
+`getLedger` takes the input of a ledger ID and returns the associated ledger header. 
+The ledger ID is a unique identifier of XRPL ledgers and can be a ledger index or a ledger header. 
+
+Example: 
+```
+def getLedger(ID: ledgerID) {
+  if ledger_search(ledgerID, metaData.headers, result)
+    return result
+
+  return False
+}
+```
+
+#### 5.4.1 `sendQuest`
+`sendQuest` takes the input of a quest from a user and insert the quest into `questQueue`
+
+Example:
+```
+def sendQuest(Quest: quest) {
+  # The quest can be ledger header update, inclusion proof quest, and other defined quests. 
+  quest_insert(quest, questQueue)
+}
+```
+
+#### 5.4.1 `pendQuest`
+A relayer picks a quest from `questQueue` and xClient set the quest as pending.
+
+Example:
+```
+def pendQuest(Quest: quest) {
+  # Set the quest as pending. Will be set to free after a time period. 
+
+  pend(quest)
+  setExpire(time)
+}
+```
 
 <!-- 
 ```
