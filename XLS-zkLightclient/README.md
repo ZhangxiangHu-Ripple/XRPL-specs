@@ -347,6 +347,7 @@ The ledger ID is a unique identifier of XRPL ledgers and can be a ledger index o
 Example: 
 ```
 def getLedger(ID: ledgerID) {
+  assert is_valid_id(ledgerID)
   if ledger_search(ledgerID, metaData.headers, result)
     return result
 
@@ -365,19 +366,37 @@ def sendQuest(Quest: quest) {
 }
 ```
 
-#### 5.4.1 `pendQuest`
+#### 5.4.2 `pendQuest`
 A relayer picks a quest from `questQueue` and xClient set the quest as pending.
 
 Example:
 ```
 def pendQuest(Quest: quest) {
   # Set the quest as pending. Will be set to free after a time period. 
-
+  assert is_valid_quest(quest)
   pend(quest)
   setExpire(time)
 }
 ```
 
+#### 5.4.3 `removeQuest`
+A relayer sends the requested information to complete a task. xClient removes the quest from `questQueue`.
+
+Example: 
+```
+def removeQuest(Quest: quest, questMessage: msg) {
+  assert is_valid_msg(msg)
+
+  # if the quest is to update the ledger header
+  if is_update(quest)
+    ledgerUpdate(msg.headerMsg, msg.proof)
+
+  # if the quest is to verify a transaction
+  if is_inclusionProof(quest)
+    is_valid_transaction(msg.ledgerHeader, msg.txproof)
+}
+
+```
 <!-- 
 ```
 
@@ -431,6 +450,7 @@ headerMsg {
 ## Todo, appendix, and discussion
 
 1. Who should we talk to for the functionality of general-purpose XRPL light client?
+2. Quest, questMessage
 
 <!--
   The Specification section should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations.
