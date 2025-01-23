@@ -16,12 +16,19 @@ requiring service from a remote server relies on a strong trust assumption that 
 
 To address the high resource requirement and trust issue in running an XRPL node, 
 this amendment proposes XRPL light client. 
-The XRPL light client maintains a list of up-to-date XRPL ledgers (i.e., XRPL block headers) and 
+The XRPL light client maintains a list of up-to-date XRPL ledgers (i.e., XRPL ledger headers) and 
 apply the inclusion proof to verify that a transaction or an account state is valid on XRPL. 
 However, XRPL light client itself cannot automatically update its internal states to ensure that  
 the XRPL ledgers in the light client are consistent with those on the mainnet. 
 Therefore, we leverage Zero-knowledge Proof technique to 
 efficiently synchronize the state of XRPL light client with updated state of XRPL mainnet. 
+
+In addition to reducing the cost of running a XRPL node, 
+an XRPL light client could also be an essential building component in many applications. 
+For example, in many blockchain interoperability solutions such as zkBridge, Succinct protocols, and Inter-Blockchain Communication, 
+a blockchain needs to maintain a light client of the counter blockchain in order to track and efficiently verify the state of the counter blockchain. 
+
+
 <!--
   The Abstract is a multi-sentence (short paragraph) technical summary. This should be a very terse and human-readable version of the specification section. Someone should be able to read only the abstract to get the gist of what this specification does.
 
@@ -44,14 +51,78 @@ In XRPL, a full node can be easily instantiated by a validator or a tracking ser
 In particular, it interacts with the XPRL network or full nodes to fetch a ledger header $b$ and obtains a validity proof $p$ of $b$. 
 
 - **xClient**: xClient is the instantiation of XRPL light client that only maintains a list of XRPL ledger headers. 
-When a new block is created on XRPL, a relayer in the relay network will obtain the new header $b$ 
+When a new ledger is created on XRPL, a relayer in the relay network will obtain the new header $b$ 
 along with its associated validity proof $p$ and relay $(b, p)$ to xClient. 
 xClient verifies the proof and updates its state by appending the new header to the header list. 
 
-**![xClient architecture](https://github.com/ZhangxiangHu-Ripple/XRPL-specs/blob/main/XLS-zkLightclient/xclient_arch.png)**
+```
++-----------------+
+|                 |
+|       XRPL      |______ Block header b ____
+|                 |     Validity message m   |
++-----------------+                          |
+          ^                                  V
+          |                        +-----------------+             +-----------------+
+          |                   -----|                 |   (b, p)    |                 | -----  verifies
+      Consensus      Creates |     |  Relay network  | ----------->|     xClient     |      |  (b, p)
+          |          proof p  ---->|                 |             |                 |<-----  and updates
+          |                        +-----------------+             +-----------------+
+          V                                  ^                                      
++-----------------+                          | 
+|                 |                          | 
+|    Full nodes   |______ Block header b ____|
+|                 |      Validity message m
++-----------------+
+
+```
+
+The message flow in zkLightclient to update ledger headers in xClient is as follows: 
+1. XRPL validators broadcast validation messages and generate new XRPL ledger. 
+2. XRPL full nodes store the validation messages and the new ledger. 
+3. A relayer fetches an update quest from xClient's `questQueue`. 
+4. A relayer subscribes to the XRPL validation messages, or queries the validation messages from full nodes for a specific ledger. 
+5. The relayer receives the validation messages and extracts the messages that are signed by the nodes in xClient's UNL (the information is contained in the update quest).
+6. The relayer deserialize the messages and obtains all required data fields.
+7. The relayer processes the data, including the signing public key and the signature, converting them into the format that is compatible with a zero-knowledge proof (ZKP) proving system. 
+8. The relayer runs a prover, generates a proof, and sends the proof along with the requested ledger header to xClient. 
+This proposal suggests to use Groth16, but xClient can choose which proof it can accept. 
+9. The relayer sends the reply along with the corresponding proof to xCLient
+10. xClient verifies the proof against the header. 
+11. xClient accepts the header if the proof is valid, and rejects the header otherwise. 
+
+```
+1. Broadcast 
+   messages
+   ----
+  |    |
+  |    v
++-----------------+
+|       XRPL      |
+|       and       |<------4. Subscribe -------              ---------3. Quest---------- 
+|    Full nodes   |        and request        |            |                          |
++-----------------+                           |            |                          |
+  |    ^          |                           |            v                          |
+  |    |          |                         +-----------------+             +-----------------+
+   ----           |                         |                 |             |                 | -----  10. Verifies
+2. Store           --5. Requested message-->|  Relay network  |--9.(b, p)-->|     xClient     |      |      proof
+   messages                                 |                 |             |                 |<-----  
+                                            +-----------------+             +-----------------+
+                                             |      ^                             |     ^
+                                             |      |                             |     |
+                                              ------                               -----
+                                          Message process                     11. Updates header
+                                                 |                                and remove quest
+                                                 |
+                                                 v
+6. Sort messages according to the ledger index and deserialize all messages to get the hashed data field and decoded public key field. 
+7. Convert decoded message format to the format that is compatible to the supported proving system.
+8. If using ZKP, invoke the proof generator to generate ZK proof for processed validation messages. 
+
+```
 
 
-### 1.1. Changes to the XRPL and Rippled
+
+### 1.2 Changes to the XRPL and Rippled
 This proposal does not introduce any change to XRPL infrastructure. 
 If instantiating an XRPL full node with a validator, a tracking server, or a Clio server, 
 then some new RPC methods should be provided by these servers. 
@@ -79,19 +150,19 @@ This design adopts the same requirement and **assume that each pair of validator
 A full node in xClient ecosystem is the node that has a complete copy of the blockchain, 
 including the entire transaction history and the current state. 
 Anyone can join the XRPL network and act as a full node to provide services for others. 
-We propose two main functionalities of a full node: 
+We propose three main functionalities of a full node: 
 
 1. Storing the whole XRPL transaction history and keeping the current ledger state up to date. We refer the node with full ledger history since the genesis ledger as the archive node, and the node with partial history (e.g., most recent 1024 ledgers) as the regular full node. 
 
-2. Storing the validation messages of the most recent leader. 
+2. Storing the validation messages of recent ledgers (e.g., for most recent 1024 ledgers). 
 
 3. Responding to queries from other full nodes and relayers for information about ledger headers and transactions.
 
-To respond to queries about the information of ledger headers and inclusion proof, 
+In order to respond to queries about the information of ledger headers and inclusion proof, 
 a full node must support following RPC methods.  
 
 ### 3.1 `getblockheaders`
-Returns the header of a specific XRPL ledger or headers of a set of ledgers, identified by ledger hashes or heights. 
+Returns the header of a specific XRPL ledger header or a set of ledger headers, identified by ledger hashes or heights. 
 
 Request format:
 |Field Name|JSON Type|Description|
@@ -210,8 +281,8 @@ XRPL mainnet or full nodes to xClient for header update and transaction verifica
 
 1. A relay node continuously monitor XRPL new ledger headers. 
 When a new ledger header is created, the node obtains the new block header information by either 
-1) monitoring the XRPL mainnet (by subscribing Validations Stream) or 
-2) querying full nodes with `getledgerproof` method. 
+  a) monitoring the XRPL mainnet (by subscribing Validations Stream) or 
+  b) querying full nodes with `getledgerproof` method. 
 Then the node generates the header proof with **zero-knowledge proof** technique and forwards the new ledger header along with the header proof to an xClient instance. 
 
 2. A relay node monitors xClient request queue and retrieve requests from xClient. 
@@ -233,6 +304,13 @@ Anyone can join the relay network to provides relay service between XRPL and xCl
 For example, a node can act as both a full node and a relayer. 
 In practice, a potential instantiation of a relayer is the witness server, as described in 
 [XLS-38](https://github.com/XRPLF/XRPL-Standards/tree/d61629cf2a5ad81153c7439f74f48d90dc96e741/XLS-0038-cross-chain-bridge).
+
+The workflow of a relayer is as follows:
+1. A relayer fetches a quest from xClient's `questQueue`. 
+2. The relayer processes the quest, submits it to full nodes via RPC or subscribes to XRPL validation messages. 
+3. The relayer obtains the response from the full node or XRPL mainnet. 
+4. The relayer processes the obtained response and runs a prover to generate a corresponding proof according to the quest.
+5. The relayer forwards the response along with the proof to xClient. 
 
 ## 5. xClient
 xClient is the core component of the xClient ecosystem. 
@@ -278,10 +356,10 @@ If more than 80% validators in xClient's UNL sign a new ledger header in validat
 xClient consider the new header as valid and updates its internal state accordingly. 
 
 We also propose to leverage ZKP to achieve succinctness. 
-Specifically, xClient MUST support SNARK proof (e.g., Groth16) verification for constant proof size and verification time. 
+Specifically, xClient MUST support a ZK proving system (e.g., Groth16) that has constant proof size and verification time. 
 \xnote{add details of proving system?}
 
-**![diagram](https://github.com/ZhangxiangHu-Ripple/XRPL-specs/blob/main/XLS-zkLightclient/xclient_relayer.png)**
+<!--**![diagram](https://github.com/ZhangxiangHu-Ripple/XRPL-specs/blob/main/XLS-zkLightclient/xclient_relayer.png)**-->
 
 ### 5.3 Containers
 This section specifies the containers in xClient.
@@ -318,6 +396,19 @@ A relayer picks a task from `questQueue` and provide the corresponding informati
 |-------|---------|---------|
 |`quests`|`Array of String`| A queue that stores all unfinished tasks. 
 
+#### 5.3.4 `quest`
+A `quest` container describes a task that the xClient needs to perform. 
+A task can be generated by xClient or a user that connects to xClient. 
+This proposal defines two types of quest:
+1. Update quest. It is generated by xClient or a user for the update of specified XRPL ledger header.
+2. Proof quest. It is generated by user and submitted to xClient for the proof of a transaction. 
+
+|Field Name|JSON Type|Description|
+|-------|---------|---------|
+|`address`|`String`| A unique ID of xClient instantiation. For example, an Ethereum address. 
+|`type`|`String`| Update quest or Proof quest. 
+|`Quest`|`Object`| Quest details. 
+|`fee`|`Number`| The reward for relayers to complete the task. 
 
 ### 5.4 Methods
 This section defines the publicly exposed methods in xClient. 
@@ -397,172 +488,27 @@ def removeQuest(Quest: quest, questMessage: msg) {
 }
 
 ```
-<!-- 
-```
+# Appendix
 
-#### 2.4.4 Containers and Helper Functions 
+## Appendix A: FAQ
 
-- **Metadata**
-```
-MetaData {
-  chainID: string;    // indicates XRPL 
-  proofType: uint32;   // we propose four options
-  quorum: double;    // number of valid signatures for a valid block header
-  latestIndex: Height;    // current height of light client
-  lastUpdateTime;    // the timestamp for the last update of xClient
-  expireTime;    // xClient expires if it is offline for a while
-  headers: byte[] // XPRL header list
+### A.1: How to instantiate an XRPL light client?
 
-  Initialization();    // Called by the goverance layer to create a new instance of xClient. The goverance layer decides the initial MetaData, ConsensusData, and other required parameters for xClient. 
-  VerifyHeaderMsg();   // verify the header message it receives. 
-  UpdateMetaData();    // update `MetaData` and `ConsensusData` if VerifyHeaderMsg() returns true.
-  VerifyException();   // check if XRPL has any pre-defined infrastructure change
-  UpdateException();   // update the corresponding properties that are stored in MetaData and ConsensusData 
-  SubmitHeaderMsg();   // allow relayers to submit block header message to xClient. 
-}
-```
+An xClient can be instantiated by a wallet, a dApp, and an on-chain smart contract.
 
-- **requestUpdate**
-```
-requestUpdate{
-  "id": string;   // time, block number, transaction hash, or vlidators
-  "command": string;  // value of the command according to the id
-  "ledgerIndex": uint64;  // the last verified header in xClient
-}
+### A.2: Why do we need an on-chain xClient?
 
-```
+An on-chain xClient can be used in other applications such as zkBridge and cross-chain lending.
 
-- **headerMsg**
-```
-headerMsg {
-  validators: byte[];    // a list of validator information
-  blockIndex: Height;    // height of the latest block 
-  headerHash: byte[];    // a single header or multiple headers 
-  proofType: uint32;    // choose a proof type
-  headerProofs: byte[];    // signatures or proofs based on the proofType
-  lastTrustedLedgerIndex: uint64 or byte[32];    // height of the last trusted block
-  exceptions: uint32;    // Uncommon infrastructure change of XRPL such as consensus mechanism, fork, expired xClient, etc... used to stop xClient and invoke goverance layer. Should be well defined by the goverance layer. 
+### A.3: What is the incentive to run a full node, a relayer, or an xClient?
 
-```
+A full node can charge a subscription fee for relayers to use its RPC service. A relayer can earn rewards by completing xClient quests. An xClient can charge service fee for providing service to users and applications. 
 
--->
+### A.4: Why do we need to use ZK to verify the validity of a ledger header. 
 
-## Todo, appendix, and discussion
+Because verifying multiple signatures and state change is expensive, especially for an on-chain light client. 
 
-1. Who should we talk to for the functionality of general-purpose XRPL light client?
-2. Quest, questMessage
 
-<!--
-  The Specification section should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations.
 
-  It is recommended to follow RFC 2119 and RFC 8170. Do not remove the key word definitions if RFC 2119 and RFC 8170 are followed.
 
-  TODO: Remove this comment before submitting
--->
-
-<!-- The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in RFC 2119 and RFC 8174. -->
-
-<!--
-The following is an example of how you can document new transactions, ledger entry types, and fields:
-
-#### **`<entry name>`** ledger entry
-
-<High level overview, explaining the object>
-
-##### Fields
-
-<Any explanatory text about the fields overall>
-
----
-
-| Field Name        | Required?        |  JSON Type      | Internal Type     |
-|-------------------|:----------------:|:---------------:|:-----------------:|
-| `<field name>` | :heavy_check_mark: | `<string, number, object, array, boolean>` | `<UINT128, UINT160, UINT256, ...>` |
-
-<Any explanatory text about specific fields. For example, if an object must contain exactly one of three fields, note that here.>
-
-###### Flags
-
-> | Flag Name            | Flag Value  | Description |
->|:---------------------:|:-----------:|:------------|
->| `lsf<flag name>` | `0x0001`| <flag description> |
-
-<Any explanatory text about specific flags>
-
-For "Internal Type", most fields should use existing types defined in the XRPL binary format's type list here: https://xrpl.org/docs/references/protocol/binary-format#type-list . If a new type must be defined, add a separate section describing the rationale for the type, its binary format, and JSON representation.
-
-When defining transactions, please identify any potential error scenarios. If a transaction can fail with a `tec`-class result code, specify the appropriate code. Remember that tec codes are immutable ledger entries, so changing them can cause compatibility issues with older data. Additionally, as tec codes are limited in number, it's best to reuse existing codes whenever possible. While error code details may be initially vague or incomplete, they should be refined as the proposal progresses through the candidate specification process.
--->
-
-<!-- ## Rationale -->
-
-<!--
-  The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages.
-
-  The current placeholder is acceptable for a draft.
-
-  TODO: Remove this comment before submitting
--->
-
-<!-- TBD -->
-
-<!-- ## Backwards Compatibility -->
-
-<!--
-
-  This section is optional.
-
-  All XLS specs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. This section must explain how the author proposes to deal with these incompatibilities. Submissions without a sufficient backwards compatibility treatise may be rejected outright.
-
-  The current placeholder is acceptable for a draft.
-
-  TODO: Remove this comment before submitting
--->
-
-<!-- No backward compatibility issues found.
-
-## Test Cases -->
-
-<!--
-  This section is optional.
-
-  The Test Cases section should include expected input/output pairs, but may include a succinct set of executable tests. It should not include project build files. No new requirements may be be introduced here (meaning an implementation following only the Specification section should pass all tests here.)
-  If the test suite is too large to reasonably be included inline, then consider adding it as one or more files in the folder with this XLS. External links are discouraged.
-
-  TODO: Remove this comment before submitting
--->
-
-<!-- ## Invariants -->
-
-<!--
-  This section is optional, but recommended.
-
-Invariants are fundamental rules governing a feature's behavior that must always hold true. They define the boundaries of expected behavior and the underlying assumptions of the design. If a situation violates an invariant, it can be classified as unintended behavior, aiding in bug detection and prevention. The XRP Ledger's code incorporates invariant checks to prevent transactions from executing if they would violate an invariant rule, thereby safeguarding the ledger's immutable history from erroneous or corrupted data. While the invariants specified here can be used to create invariant checks, some may be impractical to verify at runtime.
-
-  TODO: Remove this comment before submitting
-
--->
-
-<!-- ## Reference Implementation -->
-
-<!--
-  This section is optional.
-
-  The Reference Implementation section should include a minimal implementation that assists in understanding or implementing this specification. It should not include project build files. The reference implementation is not a replacement for the Specification section, and the proposal should still be understandable without it.
-  If the reference implementation is too large to reasonably be included inline, then consider adding it as one or more files in the folder with this XLS. External links are discouraged.
-
-  TODO: Remove this comment before submitting
--->
-
-<!-- ## Security Considerations -->
-
-<!--
-  All XLS documents must contain a section that discusses the security implications/considerations relevant to the proposed change. Include information that might be important for security discussions, surfaces risks, and can be used throughout the lifecycle of the proposal. For example, include security-relevant design decisions, concerns, important discussions, implementation-specific guidance and pitfalls, an outline of threats and risks, and how they are being addressed. Submissions missing the "Security Considerations" section may be rejected.
-
-  The current placeholder is acceptable for a draft.
-
-  TODO: Remove this comment before submitting
--->
-
-<!-- Needs discussion. -->
 
