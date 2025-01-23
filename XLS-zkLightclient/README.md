@@ -9,9 +9,10 @@ Author:       <a href="mailto:zhu@ripple.com">Zhangxiang Hu (Ripple)</a>
 # Light client with Zero Knowledge Proof
 
 ## Abstract
-To interact with XRPL network, a new XRPL client node must either maintains a full transaction history or 
-connects to a remote server which can provide required services to the node. 
-However, while maintaining a full XRPL transaction history is resource intensive and impractical for many resource-constrained devices such as smart phones and Internet of Things, 
+To interact with XRPL network, a new XRPL client node must either maintains a full transaction history of the whole XRPL ledgers or some most recent ledgers (e.g., most recent 256 ledgers ),  
+or it connects to a remote server which can provide required services to the node. 
+However, while maintaining a full XRPL transaction history is resource [intensive](https://xrpl.org/docs/infrastructure/installation/capacity-planning) 
+and impractical for many resource-constrained devices such as smart phones and Internet of Things, 
 requiring service from a remote server relies on a strong trust assumption that the server must be honest. 
 
 To address the high resource requirement and trust issue in running an XRPL node, 
@@ -42,8 +43,8 @@ contains four components: XRP ledger (XRPL), XRPL full nodes, relay network, and
 - **XRP Ledger**: XRPL is an open ledger that executes all transactions and updates the states of all ledger objects. 
 It relies on the XRP Ledger Consensus Protocol (LCP) to agree on a set of transactions to add to the next ledger version. 
 
-- **XRPL Full nodes**: A full node stores a complete copy of the blockchain's transaction history, current state, and all the rules necessary to validate transactions and blocks. 
-A full node does not have to participate in the XRP LCP to create new blocks. 
+- **XRPL Full nodes**: A full node stores a complete copy of the blockchain's transaction history, current state, and all the rules necessary to validate XRPL transactions and ledgers. 
+A full node does not have to participate in the XRP LCP to create new ledgers. 
 However, it should be able to verify a specific transaction's validity. 
 In XRPL, a full node can be easily instantiated by a validator or a tracking server. 
 
@@ -58,7 +59,7 @@ xClient verifies the proof and updates its state by appending the new header to 
 ```
 +-----------------+
 |                 |
-|       XRPL      |______ Block header b ____
+|       XRPL      |_____ Ledger header b ____
 |                 |     Validity message m   |
 +-----------------+                          |
           ^                                  V
@@ -70,8 +71,8 @@ xClient verifies the proof and updates its state by appending the new header to 
           V                                  ^                                      
 +-----------------+                          | 
 |                 |                          | 
-|    Full nodes   |______ Block header b ____|
-|                 |      Validity message m
+|    Full nodes   |_____ Ledger header b ____|
+|                 |     Validity message m
 +-----------------+
 
 ```
@@ -86,7 +87,7 @@ The message flow in zkLightclient to update ledger headers in xClient is as foll
 7. The relayer processes the data, including the signing public key and the signature, converting them into the format that is compatible with a zero-knowledge proof (ZKP) proving system. 
 8. The relayer runs a prover, generates a proof, and sends the proof along with the requested ledger header to xClient. 
 This proposal suggests to use Groth16, but xClient can choose which proof it can accept. 
-9. The relayer sends the reply along with the corresponding proof to xCLient
+9. The relayer sends the reply along with the corresponding proof to xClient
 10. xClient verifies the proof against the header. 
 11. xClient accepts the header if the proof is valid, and rejects the header otherwise. 
 
@@ -125,7 +126,7 @@ This proposal suggests to use Groth16, but xClient can choose which proof it can
 ### 1.2 Changes to the XRPL and Rippled
 This proposal does not introduce any change to XRPL infrastructure. 
 If instantiating an XRPL full node with a validator, a tracking server, or a Clio server, 
-then some new RPC methods should be provided by these servers. 
+then some new Remote procedure call (RPC) methods should be provided by these servers. 
 These methods have no effect on consensus or transaction processing, 
 thus requires no amendment.
 
@@ -147,10 +148,9 @@ To ensure the consistency of XRPL, an [analysis](https://arxiv.org/pdf/1802.0724
 This design adopts the same requirement and **assume that each pair of validators’ UNL has an overlap of more than 90% (assumption 1)**. 
 
 ## 3. Full Nodes
-A full node in xClient ecosystem is the node that has a complete copy of the blockchain, 
-including the entire transaction history and the current state. 
+A full node in xClient ecosystem is the node that has a complete copy of transaction history and the current state, either for the whole XRPL ledgers or some most recent ledgers. 
 Anyone can join the XRPL network and act as a full node to provide services for others. 
-We propose three main functionalities of a full node: 
+We propose two main basic functionalities of a full node: 
 
 1. Storing the whole XRPL transaction history and keeping the current ledger state up to date. We refer the node with full ledger history since the genesis ledger as the archive node, and the node with partial history (e.g., most recent 1024 ledgers) as the regular full node. 
 
@@ -161,7 +161,7 @@ We propose three main functionalities of a full node:
 In order to respond to queries about the information of ledger headers and inclusion proof, 
 a full node must support following RPC methods.  
 
-### 3.1 `getblockheaders`
+### 3.1 `getledgerheaders`
 Returns the header of a specific XRPL ledger header or a set of ledger headers, identified by ledger hashes or heights. 
 
 Request format:
@@ -280,7 +280,7 @@ The xClient ecosystem requires a relay service to forward required information f
 XRPL mainnet or full nodes to xClient for header update and transaction verification. 
 
 1. A relay node continuously monitor XRPL new ledger headers. 
-When a new ledger header is created, the node obtains the new block header information by either 
+When a new ledger header is created, the node obtains the new ledger header information by either 
   a) monitoring the XRPL mainnet (by subscribing Validations Stream) or 
   b) querying full nodes with `getledgerproof` method. 
 Then the node generates the header proof with **zero-knowledge proof** technique and forwards the new ledger header along with the header proof to an xClient instance. 
@@ -294,7 +294,7 @@ Then the node generates the header proof with **zero-knowledge proof** technique
 4. (Optional) In case of XRPL consensus mechanism change, a relayer submits the evidence of the change to xClient. 
 
 In this proposal, a relayer is only responsible for establishing communications between XRPL mainnet/full nodes and 
-does not perform any verification of transactions or block headers, thus do not need to be trusted to behave honestly. 
+does not perform any verification of transactions or ledger headers, thus do not need to be trusted to behave honestly. 
 However, to simplify the case of DoS, 
 **we assume there is at least one honest node in the relay network to 
 relay headers, transactions, and the corresponding proofs (Assumption 2)**.
@@ -344,10 +344,10 @@ xClient will eventually include a ledger header $lh_k$ such that the correspondi
 In xClient model, either full nodes or relayers should provide validity proof for new ledger headers. 
 In this design, we propose **validation message-based proof** for updating ledger headers on xClient. 
 In particular, the design requires an xClient instantiation maintains its own UNL. 
-when a new block is created, relayers obtain the validation messages from XRPL network which 
-are signed by XRPL validators, and relay the messages to xClient. 
-After receiving the required validation messages, xClient verifies the signatures against the UNL it maintains. 
-If a majority of the signatures are valid, then xClient accepts the new block header. 
+When a new ledger is created, relayers obtain the validation messages from XRPL network which 
+are signed by XRPL validators, generate a proof for the validation messages, and relay the messages along with the proof to xClient. 
+After receiving the required validation messages, xClient verifies proof against the validation messages and the UNL it maintains. 
+If the proof indicates that majority of the signatures are valid, then xClient accepts the new ledger header. 
 
 In XRPL consensus mechanism, to avoid forking, 
 the UNLs of validators should have a high degree of overlap. 
@@ -382,7 +382,7 @@ A `consensusData` container includes the consensus information that is used to v
 
 |Field Name|JSON Type|Description|
 |-------|---------|---------|
-|`timeStamp`|`Time`| The timestamp of the last verified block.
+|`timeStamp`|`Time`| The timestamp of the last verified ledger.
 |`consensusType`|`String`| XRPL consensus mechanism.
 |`validators`|`Array of Strings`| The UNL of xClient.
 |`validatorKeys`|`Array of Strings`| The public keys of accepted validators if `proofType` has the value of 0.
