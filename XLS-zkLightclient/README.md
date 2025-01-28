@@ -9,20 +9,20 @@ Author:       <a href="mailto:zhu@ripple.com">Zhangxiang Hu (Ripple)</a>
 # Light client with Zero Knowledge Proof
 
 ## Abstract
-To interact with XRPL network, a new XRPL client node must either maintains a full transaction history of the whole XRPL ledgers or some most recent ledgers (e.g., most recent 256 ledgers ),  
+To interact with XRPL network, a new XRPL client node must either maintain a full transaction history of the whole XRPL ledgers or some most recent ledgers (e.g., most recent 256 ledgers ),  
 or it connects to a remote server which can provide required services to the node. 
 However, while maintaining a full XRPL transaction history is resource [intensive](https://xrpl.org/docs/infrastructure/installation/capacity-planning) 
-and impractical for many resource-constrained devices such as smart phones and Internet of Things, 
+and impractical for many resource-constrained devices, such as smart phones and the Internet of Things, 
 requiring service from a remote server relies on a strong trust assumption that the server must be honest. 
 
 To address the high resource requirement and trust issue in running an XRPL node, 
 this amendment proposes XRPL light client. 
 The XRPL light client maintains a list of up-to-date XRPL ledgers (i.e., XRPL ledger headers) and 
 apply the inclusion proof to verify that a transaction or an account state is valid on XRPL. 
-However, XRPL light client itself cannot automatically update its internal states to ensure that  
+However, an XRPL light client itself cannot automatically update its internal states to ensure that  
 the XRPL ledgers in the light client are consistent with those on the mainnet. 
 Therefore, we leverage Zero-knowledge Proof technique to 
-efficiently synchronize the state of XRPL light client with updated state of XRPL mainnet. 
+efficiently synchronize the state of XRPL light client with the state of XRPL mainnet. 
 
 In addition to reducing the cost of running a XRPL node, 
 an XRPL light client could also be an essential building component in many applications. 
@@ -77,10 +77,10 @@ xClient verifies the proof and updates its state by appending the new header to 
 
 ```
 
-The message flow in zkLightclient to update ledger headers in xClient is as follows: 
+An example of message flow in zkLightclient to update ledger headers in xClient is as follows: 
 1. XRPL validators broadcast validation messages and generate new XRPL ledger. 
 2. XRPL full nodes store the validation messages and the new ledger. 
-3. A relayer fetches an update quest from xClient's `questQueue`. 
+3. A relayer fetches an updating quest from xClient's `questQueue`. 
 4. A relayer subscribes to the XRPL validation messages, or queries the validation messages from full nodes for a specific ledger. 
 5. The relayer receives the validation messages and extracts the messages that are signed by the nodes in xClient's UNL (the information is contained in the update quest).
 6. The relayer deserialize the messages and obtains all required data fields.
@@ -90,6 +90,8 @@ This proposal suggests to use Groth16, but xClient can choose which proof it can
 9. The relayer sends the reply along with the corresponding proof to xClient
 10. xClient verifies the proof against the header. 
 11. xClient accepts the header if the proof is valid, and rejects the header otherwise. 
+
+Note that the message flow might be different, depends on the update modes (Section 4.3). 
 
 ```
 1. Broadcast 
@@ -275,7 +277,252 @@ Response format:
 |`ledger_index`|`Number`|The ledger index of the searched ledger.
 |`tx_list`|`Array of Objects`|Array of complete transaction metadata associated with `account`. 
 
-## 4. Relay Network
+
+## 4. xClient
+xClient is the core component of the xClient ecosystem. 
+It maintains the state (i.e., the ledger headers) history of XPRL and 
+enables relayers to synchronize new ledger header of XRPL mainnet. 
+The main functionalities of xClient include:
+
+1. xClient maintains the history of XRPL states. 
+
+2. xClient updates its internal state to synchronize the latest ledger header with XRPL mainnet, under the help from a relayer. 
+Specifically, xClient receives a new ledger header along with an associated ZK proof from a relayer and 
+then verifies the proof against the new header. 
+xClient updates its state with the new header if the proof is valid, and rejects otherwise. 
+
+3. xClient provides the state information to users who make queries about the XRPL states. 
+
+4. xClient verifies the validity of XRPL transactions, under the help from a relayer. {\xnote optional?}
+
+### 4.1 Security 
+
+This design adopts the security definition from the peer-reviewed [zkBridge](https://arxiv.org/pdf/2210.00264) paper 
+and revises the definition accordingly to fit XRPL requirements. 
+Let $\lambda$ be the security parameter. 
+Recall that any ledger header commits to a chain of ledgers back to the Genesis ledger. 
+Let $r$ be the round counter that indicates the time of ledger header updates in xClient, 
+we denote as $C^P_r$ the chain to which a party $P$'s most recent validated ledger commits to in a given round $r$. Similarly, we denote $C^{X_i}_r$ the chain to which 
+a XRPL light client $X_i$’s most recently accepted header commits to. 
+xClient should satisfy the following properties: 
+
+* **Safety.** A (light) client protocol is safe 
+if for any xClient $i$ the following holds with overwhelming probability in $\lambda$: 
+  1. Self-consistency: For any round $`r_1 \leq r_2`$, $`C^{X_i}_{r_1} \preceq C^{X_i}_{r_2}`$.
+  2. View-consistency: For any round $r$ and any honest full node $P$, 
+  it holds that $`C^{X_i}_{r} \preceq C^{P}_{r}`$, or $`C^{X_i}_{r} \preceq C^{P}_{r}`$.
+* **Liveness.** A (light) client protocol is $u$-live if for any transaction
+$tx$ an honest consensus/full protocol node receives in any round $r$, 
+$tx$ will be reflected in $C^{X_i}_{r+u}$ with overwhelming probability in $\lambda$.
+* **Efficiency.** A (light) client protocol is efficient, if it has the following two properties: 
+  1. It has a constant size of proof for safety and liveness.
+  2. It has a constant time to verify the proof of a new ledger header for updates. 
+  
+<!-- let $View_i = [lh_1,lh_2,...,lh_i]$ where $lh_i$ indicates the ledger header at height $i$, 
+xClient should satisfy the following properties: 
+- **Succinctness**: For each state update, xClient should take constant 𝑂(1) time to synchronize the state.
+- **Liveness**: If an honest full node receives some transaction $tx$ at some round $𝑟$, 
+then $tx$ must be included into the XRPL eventually. 
+xClient will eventually include a ledger header $lh_k$ such that the corresponding ledger includes the transaction $tx$. 
+- **Consistency**: For any round of $i$ and $j$, it must be satisfied that either $View_𝑖$ is a prefix of $View_j$, or vice versa.  -->
+
+### 4.2 Header Proof
+In xClient model, either full nodes or relayers should provide validity proof for new ledger headers in order to achieve safety and liveness properties. 
+In this design, we propose **validation message-based proof** for updating ledger headers on xClient. 
+**In particular, the design assumes an xClient instantiation maintains its own UNL 
+which should also have $`90\%`$ overlap with the consensus node in the XRPL network (assumption 3)**.
+When a new ledger is created, relayers obtain the validation messages from XRPL network which 
+are signed by XRPL validators, generate a proof for the validation messages, and relay the messages along with the proof to xClient. 
+**The design assumes the use of signature schemes that are secure under existential unforgeability against chosen message attacks (assumption 4)**. 
+In XRPL, validation messages are signed by ECDSA with Secp256k1 curve. 
+After receiving the required validation messages, xClient verifies proof against the validation messages and the UNL it maintains. 
+If the proof indicates that majority of the signatures are valid, then xClient accepts the new ledger header. 
+
+In XRPL consensus mechanism, to avoid forking, 
+the UNLs of validators should have a high degree of overlap. 
+Similarly, in this design, an xClient instantiation also uses the recommended 35 validators in default to configure its UNL. 
+If more than 80% validators in xClient's UNL sign a new ledger header in validation messages, 
+xClient consider the new header as valid and updates its internal state accordingly. 
+
+We also proposes to leverage ZK-SNARK technique to achieve the efficiency property. 
+This specification does not specify which ZK-SNARK proving system to be utilized in xClient design. 
+A developer may choose a preferred proving system. 
+However, the selected system should generate a constant size proof and has a constant verification time (e.g., Groth16). 
+**This specification also assumes that the setup phase in the selected system should 
+correctly generate the structured reference string and 
+satisfy the completeness, soundness, and zero-knowledge (if required) properties (assumption 5)**
+\xnote{add details of proving system?}
+
+An example of a validation message from XRPL:
+```
+{
+  "cookie": "10245873374866816142",
+  "data": "2280000001260040E981292F26CC633A8E30A78CAA91BC8E513F79ABC7F620F35A82AF0D2CB5CC0397E0208B4CC22DB3DCDCBD7CB49E6D2C705017000000000000000000000000000000000000000000000000000000000000000050193E48C53A3CAE64E296B14D286E23E18D5611889F74AFA927C52C94FC16002D907321028C9C1DE3789DA22316D789E31099D10F0FE5977DAFD45459B1311FFB65F46FC976473045022100AC7604E7C9747FE6BF3CAE8505662EAFB2564FE6999D1182F417565C3D224A950220416E7E9A8E849AF36A7130E22B7F0846BD0CA621198097884C75CBADB54B64B9",
+  "flags": 2147483649,
+  "full": true,
+  "ledger_hash": "3F79ABC7F620F35A82AF0D2CB5CC0397E0208B4CC22DB3DCDCBD7CB49E6D2C70",
+  "ledger_index": "4254081",
+  "master_key": "nHUeUNSn3zce2xQZWNghQvd9WRH6FWEnCBKYVJu2vAizMxnXegfJ",
+  "signature": "3045022100AC7604E7C9747FE6BF3CAE8505662EAFB2564FE6999D1182F417565C3D224A950220416E7E9A8E849AF36A7130E22B7F0846BD0CA621198097884C75CBADB54B64B9",
+  "signing_time": 791071843,
+  "type": "validationReceived",
+  "validated_hash": "3E48C53A3CAE64E296B14D286E23E18D5611889F74AFA927C52C94FC16002D90",
+  "validation_public_key": "n9KcRZYHLU9rhGVwB9e4wEMYsxXvUfgFxtmX25pc1QPNgweqzQf5"
+}
+```
+<!--**![diagram](https://github.com/ZhangxiangHu-Ripple/XRPL-specs/blob/main/XLS-zkLightclient/xclient_relayer.png)**-->
+
+### 4.3 Update mode
+An xClient should support one of the following modes to update its internal state. 
+
+#### 4.3.1 Active update
+In the active update, xClient is always synchronized with XRPL mainnet, regardless of whether xClient is invoked or not. 
+A relayer that subscribes to XRPL validations streams receives validation messages from XRPL network. 
+Then the relayer generates a validity proof and sends the proof along processed new ledger message to xClient. 
+xClient actively listens to the new ledger message and 
+always updates its internal state when the message is arrived. 
+
+#### 4.3.2 Passive update
+In the passive update, xClient is synchronized with XRPL mainnet only if it receives a service quest from a user, 
+regardless of whether xClient is invoked or not. 
+When xClient receives a user's quest, it stores the quest in `questQueue` and performs one of the follows:
+* The xClient sends a RPC request to its connected relayers for synchronization with XRPL mainnet. 
+* Relayers monitor the `questQueue` and sends requested ledger message to fulfill the quest. 
+
+#### 4.3.3 Hybrid update 
+In the hybrid update, xClient is synchronized with XRPL mainnet when it is invoked. 
+When xClient is invoked, it sends a message to its connected relayers to notify the start of synchronization. 
+Then the relayers act as in the active update mode to send proofs and new ledgers to xClient for synchronization. 
+
+### 4.4 Containers
+This section specifies the containers in xClient.
+
+#### 4.4.1 `metaData`
+A `metadata` container includes the meta information of xClient. 
+
+|Field Name|JSON Type|Description|
+|-------|---------|---------|
+|`chainID`|`String`| The associated chain name
+|`proofType`|`Number`| The proof type that xClient supports: validation messages-based or state transition-based.
+|`quorum`|`Number`| Required number of signatures if `proofType` is validation messages-based proof.
+|`height`|`Number`| The latest ledger index that xClient maintains.
+|`lastUpdateTime`|`Time`| The proof type that xClient supports.
+|`expireTime`|`Time`| xClient expires if it is offline for a while.
+|`headers`|`Array of Strings`| The list of XRPL ledger header.
+
+#### 4.4.2 `consensusData`
+A `consensusData` container includes the consensus information that is used to verify a new XRPL ledger header. 
+
+|Field Name|JSON Type|Description|
+|-------|---------|---------|
+|`timeStamp`|`Time`| The timestamp of the last verified ledger.
+|`consensusType`|`String`| XRPL consensus mechanism.
+|`validators`|`Array of Strings`| The UNL of xClient.
+|`validatorKeys`|`Array of Strings`| The public keys of accepted validators if `proofType` has the value of 0.
+
+#### 4.4.3 `questQueue`
+A `questQueue` container includes the quests that xClient requires: `update` to update the latest ledger header and `inclusionProof` to inquire the inclusion proof of a transaction. 
+A user sends a task to xClient and xClient stores the task in `questQueue`. 
+A relayer picks a task from `questQueue` and provide the corresponding information to complete the task. 
+
+|Field Name|JSON Type|Description|
+|-------|---------|---------|
+|`quests`|`Array of String`| A queue that stores all unfinished tasks. 
+
+#### 4.4.4 `quest`
+A `quest` container describes a task that the xClient needs to perform. 
+A task can be generated by xClient or a user that connects to xClient. 
+This proposal defines two types of quest:
+1. Update quest. It is generated by xClient or a user for the update of specified XRPL ledger header.
+2. Proof quest. It is generated by user and submitted to xClient for the proof of a transaction. 
+
+|Field Name|JSON Type|Description|
+|-------|---------|---------|
+|`address`|`String`| A unique ID of xClient instantiation. For example, an Ethereum address. 
+|`type`|`String`| Update quest or Proof quest. 
+|`Quest`|`Object`| Quest details. 
+|`fee`|`Number`| The reward for relayers to complete the task. 
+
+### 4.5 Methods
+This section defines the publicly exposed methods in xClient. 
+
+#### 4.5.1 `ledgerUpdate`
+`ledgerUpdate` takes the input of a new XRPL ledger header and a validity proof of the header. 
+If the proof is valid against the new header, xClient inserts the new header in `headers` and updates its internal states accordingly. 
+
+Example: 
+```
+def ledgerUpdate(Header: headerMsg, Proof: proof) {
+  # check if header exists
+  if is_in(headerMsg, consensusData.headers)
+    return False
+
+  # Verify is valid. Insert header, update metaData, and consensusData. 
+  if proof_verify(headerMsg, proof, metaData, consensusData)
+    header_insert(header, metaData)
+    metaData_update(headerMsg)
+    consensus_update(headerMsg)
+}
+```
+#### 4.5.1 `getLedger`
+`getLedger` takes the input of a ledger ID and returns the associated ledger header. 
+The ledger ID is a unique identifier of XRPL ledgers and can be a ledger index or a ledger header. 
+
+Example: 
+```
+def getLedger(ID: ledgerID) {
+  assert is_valid_id(ledgerID)
+  if ledger_search(ledgerID, metaData.headers, result)
+    return result
+
+  return False
+}
+```
+
+#### 4.5.2 `sendQuest`
+`sendQuest` takes the input of a quest from a user and insert the quest into `questQueue`
+
+Example:
+```
+def sendQuest(Quest: quest) {
+  # The quest can be ledger header update, inclusion proof quest, and other defined quests. 
+  quest_insert(quest, questQueue)
+}
+```
+
+#### 4.5.3 `pendQuest`
+A relayer picks a quest from `questQueue` and xClient set the quest as pending.
+
+Example:
+```
+def pendQuest(Quest: quest) {
+  # Set the quest as pending. Will be set to free after a time period. 
+  assert is_valid_quest(quest)
+  pend(quest)
+  setExpire(time)
+}
+```
+
+#### 4.5.4 `removeQuest`
+A relayer sends the requested information to complete a task. xClient removes the quest from `questQueue`.
+
+Example: 
+```
+def removeQuest(Quest: quest, questMessage: msg) {
+  assert is_valid_msg(msg)
+
+  # if the quest is to update the ledger header
+  if is_update(quest)
+    ledgerUpdate(msg.headerMsg, msg.proof)
+
+  # if the quest is to verify a transaction
+  if is_inclusionProof(quest)
+    is_valid_transaction(msg.ledgerHeader, msg.txproof)
+}
+
+```
+
+## 5. Relay Network
 The xClient ecosystem requires a relay service to forward required information from 
 XRPL mainnet or full nodes to xClient for header update and transaction verification. 
 
@@ -295,9 +542,9 @@ Then the node generates the header proof with **zero-knowledge proof** technique
 
 In this proposal, a relayer is only responsible for establishing communications between XRPL mainnet/full nodes and 
 does not perform any verification of transactions or ledger headers, thus do not need to be trusted to behave honestly. 
-However, to simplify the case of DoS, 
-**we assume there is at least one honest node in the relay network to 
-relay headers, transactions, and the corresponding proofs (Assumption 2)**.
+However, to simplify the case of DoS, in the relay network, 
+**we assume there is at least one honest node who connects to at least one honest full node. 
+The honest relayers relay headers, transactions, and the validity proofs between full nodes and xClients (Assumption 2)**.
 
 A relayer in xClient model is an abstract entity. 
 Anyone can join the relay network to provides relay service between XRPL and xClient. 
@@ -312,182 +559,6 @@ The workflow of a relayer is as follows:
 4. The relayer processes the obtained response and runs a prover to generate a corresponding proof according to the quest.
 5. The relayer forwards the response along with the proof to xClient. 
 
-## 5. xClient
-xClient is the core component of the xClient ecosystem. 
-It maintains the state (i.e., the ledger headers) history of XPRL and 
-enables relayers to synchronize new ledger header of XRPL mainnet. 
-The main functionalities of xClient include:
-
-1. xClient maintains the history of XRPL states. 
-
-2. xClient updates its internal state to synchronize the latest ledger header with XRPL mainnet, under the help from a relayer. 
-Specifically, xClient receives a new ledger header along with an associated ZK proof from a relayer and 
-then verifies the proof against the new header. 
-xClient updates its state with the new header if the proof is valid, and rejects otherwise. 
-
-3. xClient provides the state information to users who make queries about the XRPL states. 
-
-4. xClient verifies the validity of XRPL transactions, under the help from a relayer. {\xnote optional?}
-
-### 5.1 Security 
-
-This design adopts the security definition from the peer-reviewed [zkBridge](https://arxiv.org/pdf/2210.00264) paper. 
-let $View_i = [lh_1,lh_2,...,lh_i]$ where $lh_i$ indicates the ledger header at height $i$, 
-xClient should satisfy the following properties: 
-- **Succinctness**: For each state update, xClient should take constant 𝑂(1) time to synchronize the state.
-- **Liveness**: If an honest full node receives some transaction $tx$ at some round $𝑟$, 
-then $tx$ must be included into the XRPL eventually. 
-xClient will eventually include a ledger header $lh_k$ such that the corresponding ledger includes the transaction $tx$. 
-- **Consistency**: For any round of $i$ and $j$, it must be satisfied that either $View_𝑖$ is a prefix of $View_j$, or vice versa. 
-
-### 5.2 Header Proof
-In xClient model, either full nodes or relayers should provide validity proof for new ledger headers. 
-In this design, we propose **validation message-based proof** for updating ledger headers on xClient. 
-In particular, the design requires an xClient instantiation maintains its own UNL. 
-When a new ledger is created, relayers obtain the validation messages from XRPL network which 
-are signed by XRPL validators, generate a proof for the validation messages, and relay the messages along with the proof to xClient. 
-After receiving the required validation messages, xClient verifies proof against the validation messages and the UNL it maintains. 
-If the proof indicates that majority of the signatures are valid, then xClient accepts the new ledger header. 
-
-In XRPL consensus mechanism, to avoid forking, 
-the UNLs of validators should have a high degree of overlap. 
-Similarly, in this design, an xClient instantiation also uses the recommended 35 validators in default to configure its UNL. 
-If more than 80% validators in xClient's UNL sign a new ledger header in validation messages, 
-xClient consider the new header as valid and updates its internal state accordingly. 
-
-We also propose to leverage ZKP to achieve succinctness. 
-Specifically, xClient MUST support a ZK proving system (e.g., Groth16) that has constant proof size and verification time. 
-\xnote{add details of proving system?}
-
-<!--**![diagram](https://github.com/ZhangxiangHu-Ripple/XRPL-specs/blob/main/XLS-zkLightclient/xclient_relayer.png)**-->
-
-### 5.3 Containers
-This section specifies the containers in xClient.
-
-#### 5.3.1 `metaData`
-A `metadata` container includes the meta information of xClient. 
-
-|Field Name|JSON Type|Description|
-|-------|---------|---------|
-|`chainID`|`String`| The associated chain name
-|`proofType`|`Number`| The proof type that xClient supports: validation messages-based or state transition-based.
-|`quorum`|`Number`| Required number of signatures if `proofType` is validation messages-based proof.
-|`height`|`Number`| The latest ledger index that xClient maintains.
-|`lastUpdateTime`|`Time`| The proof type that xClient supports.
-|`expireTime`|`Time`| xClient expires if it is offline for a while.
-|`headers`|`Array of Strings`| The list of XRPL ledger header.
-
-#### 5.3.2 `consensusData`
-A `consensusData` container includes the consensus information that is used to verify a new XRPL ledger header. 
-
-|Field Name|JSON Type|Description|
-|-------|---------|---------|
-|`timeStamp`|`Time`| The timestamp of the last verified ledger.
-|`consensusType`|`String`| XRPL consensus mechanism.
-|`validators`|`Array of Strings`| The UNL of xClient.
-|`validatorKeys`|`Array of Strings`| The public keys of accepted validators if `proofType` has the value of 0.
-
-#### 5.3.3 `questQueue`
-A `questQueue` container includes the quests that xClient requires: `update` to update the latest ledger header and `inclusionProof` to inquire the inclusion proof of a transaction. 
-A user sends a task to xClient and xClient stores the task in `questQueue`. 
-A relayer picks a task from `questQueue` and provide the corresponding information to complete the task. 
-
-|Field Name|JSON Type|Description|
-|-------|---------|---------|
-|`quests`|`Array of String`| A queue that stores all unfinished tasks. 
-
-#### 5.3.4 `quest`
-A `quest` container describes a task that the xClient needs to perform. 
-A task can be generated by xClient or a user that connects to xClient. 
-This proposal defines two types of quest:
-1. Update quest. It is generated by xClient or a user for the update of specified XRPL ledger header.
-2. Proof quest. It is generated by user and submitted to xClient for the proof of a transaction. 
-
-|Field Name|JSON Type|Description|
-|-------|---------|---------|
-|`address`|`String`| A unique ID of xClient instantiation. For example, an Ethereum address. 
-|`type`|`String`| Update quest or Proof quest. 
-|`Quest`|`Object`| Quest details. 
-|`fee`|`Number`| The reward for relayers to complete the task. 
-
-### 5.4 Methods
-This section defines the publicly exposed methods in xClient. 
-
-#### 5.4.1 `ledgerUpdate`
-`ledgerUpdate` takes the input of a new XRPL ledger header and a validity proof of the header. 
-If the proof is valid against the new header, xClient inserts the new header in `headers` and updates its internal states accordingly. 
-
-Example: 
-```
-def ledgerUpdate(Header: headerMsg, Proof: proof) {
-  # check if header exists
-  if is_in(headerMsg, consensusData.headers)
-    return False
-
-  # Verify is valid. Insert header, update metaData, and consensusData. 
-  if proof_verify(headerMsg, proof, metaData, consensusData)
-    header_insert(header, metaData)
-    metaData_update(headerMsg)
-    consensus_update(headerMsg)
-}
-```
-#### 5.4.1 `getLedger`
-`getLedger` takes the input of a ledger ID and returns the associated ledger header. 
-The ledger ID is a unique identifier of XRPL ledgers and can be a ledger index or a ledger header. 
-
-Example: 
-```
-def getLedger(ID: ledgerID) {
-  assert is_valid_id(ledgerID)
-  if ledger_search(ledgerID, metaData.headers, result)
-    return result
-
-  return False
-}
-```
-
-#### 5.4.1 `sendQuest`
-`sendQuest` takes the input of a quest from a user and insert the quest into `questQueue`
-
-Example:
-```
-def sendQuest(Quest: quest) {
-  # The quest can be ledger header update, inclusion proof quest, and other defined quests. 
-  quest_insert(quest, questQueue)
-}
-```
-
-#### 5.4.2 `pendQuest`
-A relayer picks a quest from `questQueue` and xClient set the quest as pending.
-
-Example:
-```
-def pendQuest(Quest: quest) {
-  # Set the quest as pending. Will be set to free after a time period. 
-  assert is_valid_quest(quest)
-  pend(quest)
-  setExpire(time)
-}
-```
-
-#### 5.4.3 `removeQuest`
-A relayer sends the requested information to complete a task. xClient removes the quest from `questQueue`.
-
-Example: 
-```
-def removeQuest(Quest: quest, questMessage: msg) {
-  assert is_valid_msg(msg)
-
-  # if the quest is to update the ledger header
-  if is_update(quest)
-    ledgerUpdate(msg.headerMsg, msg.proof)
-
-  # if the quest is to verify a transaction
-  if is_inclusionProof(quest)
-    is_valid_transaction(msg.ledgerHeader, msg.txproof)
-}
-
-```
 # Appendix
 
 ## Appendix A: FAQ
@@ -507,6 +578,25 @@ A full node can charge a subscription fee for relayers to use its RPC service. A
 ### A.4: Why do we need to use ZK to verify the validity of a ledger header. 
 
 Because verifying multiple signatures and state change is expensive, especially for an on-chain light client. 
+
+## Appendix B: Pseudocode Example
+
+### B.1: Define SNARK relation 
+* Function $`\Pi_{UNL}(\Phi, w)`$
+  * if $`\nexists S  \subseteq UNL: |S| \geq 0.8 \cdot |UNL| \wedge \forall pk_i \in S: \exists \sigma_i \in w: \sum.Vrfy(\Phi, pk_i, \sigma_j)`$ then
+    * return False
+  * if $`\neg valid_header(\phi)`$ then
+    * return  False
+  * return true
+
+
+
+
+
+
+
+
+
 
 
 
