@@ -589,6 +589,7 @@ Because verifying multiple signatures and state change is expensive, especially 
     * return  False
   * return true
 
+![SNARK relation](URL_or_path_to_image)
 
 
 
